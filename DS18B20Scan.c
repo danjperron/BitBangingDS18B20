@@ -52,6 +52,9 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
+#include <sched.h>
+
+
 
 #define PAGE_SIZE (4*1024)
 #define BLOCK_SIZE (4*1024)
@@ -670,6 +673,24 @@ void ReadSensorsFromFile(char * Filename)
 }
 
 
+// Adafruit   set_max_priority and set_default priority add-on
+
+void set_max_priority(void) {
+  struct sched_param sched;
+  memset(&sched, 0, sizeof(sched));
+  // Use FIFO scheduler with highest priority for the lowest chance of the kernel context switching.
+  sched.sched_priority = sched_get_priority_max(SCHED_FIFO);
+  sched_setscheduler(0, SCHED_FIFO, &sched);
+}
+
+void set_default_priority(void) {
+  struct sched_param sched;
+  memset(&sched, 0, sizeof(sched));
+  // Go back to default scheduler with default 0 priority.
+  sched.sched_priority = 0;
+  sched_setscheduler(0, SCHED_OTHER, &sched);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -719,12 +740,17 @@ int main(int argc, char **argv)
       exit(-2);
     }
 
+  set_max_priority();
+
+
    if(ArgFile)
    {
      ReadSensorsFromFile(FileName);
    }
    else
      ScanForSensor();
+
+  set_default_priority(); 
 
   return 0;
 
