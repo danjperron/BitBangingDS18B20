@@ -61,7 +61,7 @@
 
 
 #ifdef PI2
- #define BCM2708_PERI_BASE        0x3F0000000
+ #define BCM2708_PERI_BASE        0x3F000000
 #else
  #define BCM2708_PERI_BASE        0x20000000
 #endif
