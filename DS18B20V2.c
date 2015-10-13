@@ -5,7 +5,7 @@
 // Need to install pull-up resistor
 
 // It's need to be compiled like
-// gcc -rlt -o DS18B20V2 DS18B20V2.c
+// gcc -lrt -o DS18B20V2 DS18B20V2.c
 
 // 1 - Create mask for  Set/clear Bit
 // 2 - Create mask for  PIO MODE
@@ -56,9 +56,18 @@
 
 
 // Access from ARM Running Linux
+// remark the next define for the original PI, B,B+,A,A+
+#define PI2
 
-#define BCM2708_PERI_BASE        0x20000000
+
+#ifdef PI2
+ #define BCM2708_PERI_BASE        0x3F0000000
+#else
+ #define BCM2708_PERI_BASE        0x20000000
+#endif
 #define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+
+
 
 
 #include <stdio.h>
