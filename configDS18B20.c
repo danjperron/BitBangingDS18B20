@@ -1,3 +1,12 @@
+// modified version to check BCM physical address
+// February 1, 2016
+// check  "/proc/device-tree/soc/ranges" for BCM address
+//
+// add timer delay for us resolution from Gladkikh Artem
+// DelayMicrosecondsNoSleep 
+
+
+
 // modified version to read DS18B20 in bit banging
 //
 //  24 May 2014

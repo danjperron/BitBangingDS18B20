@@ -21,6 +21,14 @@
 // 12- End
 
 
+// modified version to check BCM physical address
+// February 1, 2016
+// check  "/proc/device-tree/soc/ranges" for BCM address
+//
+// add timer delay for us resolution from Gladkikh Artem
+// DelayMicrosecondsNoSleep
+
+
 
 //  August 3 , 2014
 // Priority added 
@@ -55,16 +63,7 @@
 
 
 
-// Access from ARM Running Linux
-// remark the next define for the original PI, B,B+,A,A+
-#define PI2
-
-
-#ifdef PI2
- #define BCM2708_PERI_BASE        0x3F000000
-#else
- #define BCM2708_PERI_BASE        0x20000000
-#endif
+unsigned long BCM2708_PERI_BASE=0x20000000;
 #define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
 
 
@@ -148,7 +147,7 @@ SensorInfoStruct DS18B20_Data[32];
 
 unsigned long PinMask;
 
-unsigned long  ModeMaskInput[3];
+unsigned long  ModeMaskInput[4];
 unsigned long  ModeMaskOutput[4];
 
 unsigned long  BadSensor=0;
@@ -167,6 +166,29 @@ double clock_diff(struct timespec start,struct  timespec end)
   dtime += (double) ((end.tv_nsec - start.tv_nsec)/ 1.0e9);
   return dtime;
 }
+
+
+#define DELAY1US  DelayMicrosecondsNoSleep(1);
+
+void DelayMicrosecondsNoSleep (int delay_us)
+{
+   long int start_time;
+   long int time_difference;
+   struct timespec gettime_now;
+
+   clock_gettime(CLOCK_REALTIME, &gettime_now);
+   start_time = gettime_now.tv_nsec;      //Get nS value
+   while (1)
+   {
+      clock_gettime(CLOCK_REALTIME, &gettime_now);
+      time_difference = gettime_now.tv_nsec - start_time;
+      if (time_difference < 0)
+         time_difference += 1000000000;            //(Rolls over every 1 second)
+      if (time_difference > (delay_us * 1000))      //Delay for # nS
+         break;
+   }
+}
+
 
 
 void SetInputMode(void)
@@ -201,7 +223,7 @@ int   DoReset(void)
 
 
   SetInputMode();
-  usleep(10);
+  DelayMicrosecondsNoSleep(10);
 
   SetOutputMode();
    // pin low for 480 us
@@ -212,11 +234,11 @@ int   DoReset(void)
 
    SetInputMode();
 
-   usleep(60);
+   DelayMicrosecondsNoSleep(60);
 
    gpio_pin = GPIO_READ;
 
-   usleep(420);
+   DelayMicrosecondsNoSleep(420);
 
    gpio_pin &= PinMask;
 
@@ -224,16 +246,6 @@ int   DoReset(void)
 
    BadSensor|= gpio_pin;
    return 0;
-}
-
-
-
-#define DELAY1US  smalldelay();
-
-void  smalldelay(void)
-{
-  int loop2;
-   for(loop2=0;loop2<100;loop2++);
 }
 
 
@@ -258,12 +270,12 @@ void WriteByte(unsigned char value)
         }
         else
         {
-           usleep(60);
+           DelayMicrosecondsNoSleep(60);
            SetInputMode();
            usleep(1);
         }
       Mask*=2;
-      usleep(60);
+      DelayMicrosecondsNoSleep(60);
     }
 
 
@@ -285,11 +297,9 @@ void  ReadByte(unsigned long *datatable)
        //  set input
        SetInputMode();
        // Wait  2 us
-       DELAY1US
-       DELAY1US
-//       DELAY1US
+       DelayMicrosecondsNoSleep(2);
        *(datatable++)= GPIO_READ;
-       usleep(60);
+       DelayMicrosecondsNoSleep(60);
       }
 }
 
@@ -609,11 +619,35 @@ int main(int argc, char **argv)
 //
 void setup_io()
 {
+  int handle;
+  int count;
+  struct{ unsigned   long  V1,V2,V3;}ranges;
+
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       printf("can't open /dev/mem \n");
       exit(-1);
    }
+
+  // read /proc/device-tree/soc/ranges
+  // to check if we have the GPIO at 0x20000000 or 0x3F000000
+
+  #define Swap4Bytes(val) \
+  ((((val) >> 24) & 0x000000FF) | (((val) >>  8) & 0x0000FF00) | \
+   (((val) <<  8) & 0x00FF0000) | (((val) << 24) & 0xFF000000) )
+
+
+  handle =  open("/proc/device-tree/soc/ranges" ,  O_RDONLY);
+
+  if(handle >=0)
+   {
+     count = read(handle,&ranges,12);
+     if(count == 12)
+       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     close(handle);
+   }
+
+  //   printf("BCM GPIO BASE= %lx\n",BCM2708_PERI_BASE);
 
    /* mmap GPIO */
    gpio_map = mmap(

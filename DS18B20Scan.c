@@ -1,3 +1,10 @@
+// modified version to check BCM physical address
+// February 1, 2016
+// check  "/proc/device-tree/soc/ranges" for BCM address
+//
+// add timer delay for us resolution from Gladkikh Artem
+// DelayMicrosecondsNoSleep
+
 // modified version to read DS18B20 in bit banging
 //
 // 26 June 2014
@@ -41,10 +48,9 @@
 
 // Access from ARM Running Linux
 
-#define BCM2708_PERI_BASE        0x20000000
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
 
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -54,6 +60,8 @@
 #include <string.h>
 #include <sched.h>
 
+unsigned long BCM2708_PERI_BASE=0x20000000;
+#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
 
 
 #define PAGE_SIZE (4*1024)
@@ -101,6 +109,30 @@ unsigned short ArgFile=0;
 unsigned short ArgWaitTime=750;
 char FileName[256];
 
+
+#define DELAY1US  DelayMicrosecondsNoSleep(1);
+
+void DelayMicrosecondsNoSleep (int delay_us)
+{
+   long int start_time;
+   long int time_difference;
+   struct timespec gettime_now;
+
+   clock_gettime(CLOCK_REALTIME, &gettime_now);
+   start_time = gettime_now.tv_nsec;      //Get nS value
+   while (1)
+   {
+      clock_gettime(CLOCK_REALTIME, &gettime_now);
+      time_difference = gettime_now.tv_nsec - start_time;
+      if (time_difference < 0)
+         time_difference += 1000000000;            //(Rolls over every 1 second)
+      if (time_difference > (delay_us * 1000))      //Delay for # nS
+         break;
+   }
+}
+
+
+
 int  DoReset(void)
 {
  int loop;
@@ -108,7 +140,7 @@ int  DoReset(void)
    INP_GPIO(DS_PIN);
 
 
-   usleep(10);
+   DelayMicrosecondsNoSleep(10);
 
    INP_GPIO(DS_PIN);
    OUT_GPIO(DS_PIN);
@@ -117,24 +149,14 @@ int  DoReset(void)
    GPIO_CLR=1<<DS_PIN;
    usleep(480);
    INP_GPIO(DS_PIN);
-   usleep(60);
+   DelayMicrosecondsNoSleep(60);
    if(GPIO_READ(DS_PIN)==0)
    {
-     usleep(420);
+     DelayMicrosecondsNoSleep(420);
      return 1;
    }
   return 0;
 }
-
-#define DELAY1US  smalldelay();
-
-void  smalldelay(void)
-{
-  int loop2;
-   for(loop2=0;loop2<50;loop2++);
-}
-
-
 
 void WriteByte(unsigned char value)
 {
@@ -151,17 +173,17 @@ void WriteByte(unsigned char value)
         {
            DELAY1US
             INP_GPIO(DS_PIN);
-           usleep(60);
+           DelayMicrosecondsNoSleep(60);
 
         }
         else
         {
-           usleep(60);
+           DelayMicrosecondsNoSleep(60);
            INP_GPIO(DS_PIN);
-           usleep(1);
+           DelayMicrosecondsNoSleep(1);
         }
       Mask*=2;
-      usleep(60);
+      DelayMicrosecondsNoSleep(60);
     }
 
 
@@ -177,15 +199,15 @@ void WriteBit(unsigned char value)
     {
       DELAY1US
       INP_GPIO(DS_PIN);
-      usleep(60);
+      DelayMicrosecondsNoSleep(60);
     }
    else
     {
-      usleep(60);
+      DelayMicrosecondsNoSleep(60);
       INP_GPIO(DS_PIN);
-      usleep(1);
+      DelayMicrosecondsNoSleep(1);
      }
-   usleep(60);
+   DelayMicrosecondsNoSleep(60);
 }
  
 
@@ -202,12 +224,10 @@ unsigned char ReadBit(void)
    DELAY1US
    // set INPUT
    INP_GPIO(DS_PIN);
-   DELAY1US
-   DELAY1US
-   DELAY1US
+   DelayMicrosecondsNoSleep(2);
    if(GPIO_READ(DS_PIN)!=0)
     rvalue=1;
-   usleep(60);
+   DelayMicrosecondsNoSleep(60);
    return rvalue;
 }
 
@@ -232,13 +252,11 @@ unsigned char ReadByte(void)
        //  set input
        INP_GPIO(DS_PIN);
        // Wait  2 us
-       DELAY1US
-       DELAY1US
-       DELAY1US
+       DelayMicrosecondsNoSleep(2);
        if(GPIO_READ(DS_PIN)!=0)
        data |= Mask;
        Mask*=2;
-       usleep(60);
+       DelayMicrosecondsNoSleep(60);
       }
 
     return data;
@@ -618,14 +636,39 @@ void ScanForSensor(void)
 }
 
 
+void PrintUsage(char * app)
+{
+  printf("usage :\n\n\t");
+  printf("%s -gpio n [-xbits] [-s] [-t delay] [-f filename]\n\n",app);
+  printf(" -gpio n     ->  n specify the BCM GPIO number to check\n");
+  printf(" -xbits      ->  x set the number of bits -9bits,-10bits,-11bits and -12bits\n");
+  printf(" -t delay    ->  delay is the time in ms to wait after conversion\n");
+  printf(" -s          ->  Scan for sensor\n");
+  printf(" -f filename ->  filename to read sensor id and return information\n");
 
-void DecodeArg(int argc, char ** argv)
+
+}
+
+
+int DecodeArg(int argc, char ** argv)
 {
 
    int idx=1;
 
+   if(argc==1)
+    {
+      PrintUsage(argv[0]);
+      return 0; 
+    }
+
+
    while(idx<argc)
     {
+       if(strstr(argv[idx],"help")!=NULL)
+        {
+          PrintUsage(argv[0]);
+          return 0;
+        }
        if(strcmp(argv[idx],"-gpio")==0)
             DS_PIN = atoi(argv[++idx]);
        else if(strcmp(argv[idx],"-9bits")==0)
@@ -652,6 +695,7 @@ void DecodeArg(int argc, char ** argv)
         }
        idx++;
      }
+  return 1;
 }
 
 
@@ -698,7 +742,13 @@ int main(int argc, char **argv)
   int Flag=0;
   // Set up gpi pointer for direct register access
 
-  DecodeArg(argc,argv);
+
+  
+
+
+
+  if(DecodeArg(argc,argv)==0)
+     return 0;
 
   setup_io();
 
@@ -762,11 +812,37 @@ int main(int argc, char **argv)
 //
 void setup_io()
 {
+ int handle;
+  int count;
+  struct{
+  unsigned   long  V1,V2,V3;
+  }ranges;
+
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       printf("can't open /dev/mem \n");
       exit(-1);
    }
+
+  // read /proc/device-tree/soc/ranges
+  // to check if we have the GPIO at 0x20000000 or 0x3F000000
+
+#define Swap4Bytes(val) \
+ ( (((val) >> 24) & 0x000000FF) | (((val) >>  8) & 0x0000FF00) | \
+   (((val) <<  8) & 0x00FF0000) | (((val) << 24) & 0xFF000000) )
+
+
+  handle =  open("/proc/device-tree/soc/ranges" ,  O_RDONLY);
+
+  if(handle >=0)
+   {
+     count = read(handle,&ranges,12);
+     if(count == 12)
+       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     close(handle);
+   }
+
+//   printf("BCM GPIO BASE= %lx\n",BCM2708_PERI_BASE);
 
    /* mmap GPIO */
    gpio_map = mmap(
