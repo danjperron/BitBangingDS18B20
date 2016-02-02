@@ -46,7 +46,10 @@
 
 // Access from ARM Running Linux
 
-#define BCM2708_PERI_BASE        0x20000000
+//#define BCM2708_PERI_BASE        0x20000000
+
+unsigned long BCM2708_PERI_BASE=0x20000000;
+
 #define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
 
 
@@ -57,6 +60,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <sched.h>
+#include <string.h>
 
 #define PAGE_SIZE (4*1024)
 #define BLOCK_SIZE (4*1024)
@@ -111,6 +115,31 @@ void set_default_priority(void) {
 }
 
 
+
+void DelayMicrosecondsNoSleep (int delay_us)
+{
+   long int start_time;
+   long int time_difference;
+   struct timespec gettime_now;
+
+   clock_gettime(CLOCK_REALTIME, &gettime_now);
+   start_time = gettime_now.tv_nsec;      //Get nS value
+   while (1)
+   {
+      clock_gettime(CLOCK_REALTIME, &gettime_now);
+      time_difference = gettime_now.tv_nsec - start_time;
+      if (time_difference < 0)
+         time_difference += 1000000000;            //(Rolls over every 1 second)
+      if (time_difference > (delay_us * 1000))      //Delay for # nS
+         break;
+   }
+}
+
+
+
+
+
+
 int  DoReset(void)
 {
  int loop;
@@ -118,26 +147,28 @@ int  DoReset(void)
    INP_GPIO(DS_PIN);
 
 
-   usleep(1000);
+   DelayMicrosecondsNoSleep(1000);
 
    INP_GPIO(DS_PIN);
    OUT_GPIO(DS_PIN);
-   
+
    // pin low for 480 us
    GPIO_CLR=1<<DS_PIN;
-   usleep(480);
+     DelayMicrosecondsNoSleep(480);
    INP_GPIO(DS_PIN);
-   usleep(60);
+     DelayMicrosecondsNoSleep(60);
    if(GPIO_READ(DS_PIN)==0)
    {
-     usleep(380);
+     DelayMicrosecondsNoSleep(380);
      return 1;
    }
  
   return 0;
 }
 
-#define DELAY1US  smalldelay();
+
+
+
 
 void  smalldelay(void)
 {
@@ -160,23 +191,23 @@ void WriteByte(unsigned char value)
 
        if((value & Mask)!=0)
         {
-           DELAY1US
+           DelayMicrosecondsNoSleep(1);
             INP_GPIO(DS_PIN);
-           usleep(60);
+            DelayMicrosecondsNoSleep(60);
 
         }
         else
         {
-           usleep(60);
+           DelayMicrosecondsNoSleep(60);
            INP_GPIO(DS_PIN);
-           usleep(1);
+           DelayMicrosecondsNoSleep(1);
         }
       Mask*=2;
-      usleep(60);
+      DelayMicrosecondsNoSleep(60);
     }
 
 
-   usleep(100);
+   DelayMicrosecondsNoSleep(100);
 }
 
 
@@ -186,12 +217,10 @@ unsigned char ReadBit(void)
    OUT_GPIO(DS_PIN);
    // PIN LOW
    GPIO_CLR= 1 << DS_PIN;
-   DELAY1US
+   DelayMicrosecondsNoSleep(1);
    // set INPUT
    INP_GPIO(DS_PIN);
-   DELAY1US
-   DELAY1US
-   DELAY1US
+   DelayMicrosecondsNoSleep(2);
    if(GPIO_READ(DS_PIN)!=0)
      return 1;
    return 0;
@@ -214,17 +243,15 @@ unsigned char ReadByte(void)
        OUT_GPIO(DS_PIN);
        //  PIN LOW
        GPIO_CLR= 1<<DS_PIN;
-       DELAY1US
+       DelayMicrosecondsNoSleep(1);
        //  set input
        INP_GPIO(DS_PIN);
        // Wait  2 us
-       DELAY1US
-       DELAY1US
-       DELAY1US
+       DelayMicrosecondsNoSleep(2);
        if(GPIO_READ(DS_PIN)!=0)
        data |= Mask;
        Mask*=2;
-       usleep(60);
+       DelayMicrosecondsNoSleep(60);
       }
 
     return data;
@@ -364,7 +391,7 @@ int loop;
 
     DoReset();
 
-    usleep(1000);
+    DelayMicrosecondsNoSleep(1000);
     // Skip ROM command
      WriteByte(DS18B20_SKIP_ROM);
 
@@ -391,7 +418,7 @@ void  CopyScratchPad(void)
 
    // Reset device
     DoReset();
-    usleep(1000);
+    DelayMicrosecondsNoSleep(1000);
 
    // Skip ROM Command
 
@@ -471,11 +498,42 @@ int main(int argc, char **argv)
 //
 void setup_io()
 {
+ int handle;
+  int count;
+  struct{
+  unsigned   long  V1,V2,V3;
+  }ranges;
+
+
+
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       printf("can't open /dev/mem \n");
       exit(-1);
    }
+
+
+
+  // read /proc/device-tree/soc/ranges
+  // to check if we have the GPIO at 0x20000000 or 0x3F000000
+
+#define Swap4Bytes(val) \
+ ( (((val) >> 24) & 0x000000FF) | (((val) >>  8) & 0x0000FF00) | \
+   (((val) <<  8) & 0x00FF0000) | (((val) << 24) & 0xFF000000) )
+
+
+  handle =  open("/proc/device-tree/soc/ranges" ,  O_RDONLY);
+
+  if(handle >=0)
+   {
+     count = read(handle,&ranges,12);
+     if(count == 12)
+       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     close(handle);
+   }
+
+   printf("BCM GPIO BASE= %lx\n",BCM2708_PERI_BASE);
+
 
    /* mmap GPIO */
    gpio_map = mmap(
