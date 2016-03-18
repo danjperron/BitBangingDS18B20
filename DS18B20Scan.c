@@ -24,6 +24,7 @@
 // Argument:
 //  -s        =>  just scan and display the 64 bits rom code of the probe
 //  -gpio n   =>  Specify pin other than GPIO10
+//  -F convert to fahrenheit
 //
 //  Step process
 //  1- Start Conversion using SKIP ROM  (all devices)
@@ -107,6 +108,8 @@ unsigned short ArgResolution=0;
 unsigned short ArgScan=0;
 unsigned short ArgFile=0;
 unsigned short ArgWaitTime=750;
+// 0 for Celsius 1 for Fahrenheit
+unsigned short ArgConversion=0;
 char FileName[256];
 
 
@@ -466,13 +469,17 @@ int ReadSensor(unsigned long long ID)
     IntTemp.CHAR[0]=ScratchPad[0];
     IntTemp.CHAR[1]=ScratchPad[1];
 
-
+    char *conv = "C";
     temperature =  0.0625 * (double) IntTemp.SHORT;
+    if(ArgConversion==1){
+        temperature = (9.0/5.0) * temperature + 32;
+        conv = "F";
+    }
 
     ID &= 0x00FFFFFFFFFFFFFFULL;
     printf("%02llX-%012llX : ",ID & 0xFFULL, ID >>8);
 
-    printf("%02d bits  Temperature: %6.2f +/- %4.2f Celsius\n", resolution ,temperature, 0.0625 * (double)  (1<<(12 - resolution)));
+    printf("%02d bits  Temperature: %6.4f +/- %4.2f %s\n", resolution ,temperature, 0.0625 * (double)  (1<<(12 - resolution)),conv);
 
     return 1;
     }
@@ -645,6 +652,7 @@ void PrintUsage(char * app)
   printf(" -t delay    ->  delay is the time in ms to wait after conversion\n");
   printf(" -s          ->  Scan for sensor\n");
   printf(" -f filename ->  filename to read sensor id and return information\n");
+  printf(" -F          ->  fahrenheit\n");
 
 
 }
@@ -688,6 +696,8 @@ int DecodeArg(int argc, char ** argv)
           ArgFile=1;
           strcpy(FileName,argv[++idx]);
         }
+       else if(strcmp(argv[idx],"-F")==0)
+            ArgConversion = 1;
        else
         {
          printf("Unknown argument %s! ",argv[idx]);
