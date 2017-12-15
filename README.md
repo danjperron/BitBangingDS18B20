@@ -12,3 +12,17 @@ Method to access the DS18B20 sensor using Rapsberry Pi GPIO
         gcc -lrt -o configDS18B20 configDS18B20.c
         gcc -lrt -o DS18B20Scan   DS18B20Scan.c
         gcc -lrt -o DS18B20V2  DS18B20V2.c
+
+Python Add-on
+
+    To install
+	cd python
+        sudo python setup.py install
+        sudo python3 setup.py install
+
+
+    Don't forget to run the module using sudo!
+    Help inside module
+	sudo python
+	help('DS8B20')
+
