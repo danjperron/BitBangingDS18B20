@@ -16,6 +16,11 @@
 #define DEBUG
 #undef DEBUG
 
+
+#define TYPE_DS18B20  0x28
+#define TYPE_MAX31850 0x3B
+
+
 /*
 Copyright (c) <2017> <Daniel Perron>
 
@@ -137,6 +142,7 @@ static PyObject* DS18B20_setResolution(PyObject* self, PyObject* args);
 static PyObject* DS18B20_getResolution(PyObject* self, PyObject* args);
 static PyObject* DS18B20_scan(PyObject* self, PyObject* args);
 static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args);
+static PyObject* MAX31850_readTemperature(PyObject* self, PyObject* args);
 static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args);
 static PyObject* DS18B20_setAcquisitionDelay(PyObject* self, PyObject* args);
 static PyObject* DS18B20_getAcquisitionDelay(PyObject* self, PyObject* args);
@@ -437,8 +443,8 @@ int ReadSensors(void)
           switch(ScratchPad[4])
            {
             case  0x1f: resolution=9;break;
-            case  0xf0: 
-            case  0x3f: resolution=10;break;
+            case  0xf0:
+            case  0x3f: resolution=10;break; 
             case  0x5f: resolution=11;break;
             default: resolution=12;break;
            }
@@ -509,6 +515,16 @@ static char  Help_read[]=    "read(StartConversion, BCM pin, sensor ID)\n"\
                                 "\t DS18B20.read(True,16,'28-000006EF85D6')\n"\
                                 "\t 19.875\n";
 
+static char  Help_read31850[]=    "readMax31850(StartConversion, BCM pin, sensor ID)\n"\
+                           "read  both termocouple and the internal temperature from the specific sensor ID string and the BCM Pin Number\n"\
+                                "\t return [ Thermocouple , internal , Errorcode]\n"\
+                                "\t Where the Error code bit is,\n"\
+                                "\t Bit0:Fault\n\t Bit1:Open circuit\n\t Bit2:Short to GND\n\t Bit3:Short to VDD\n"\
+                                "\t An error code of 0  is no error.\n"\
+                           "ex:\n\t import DS18B20\n"\
+                                "\t DS18B20.readMax31850(True,16,'3B-000006EF85D6')\n"\
+                                "\t [19.875, 18.000, 0] \n";
+
 
 static char  Help_scan[]=    "scan(BCM pin)\n"\
                           "Find all sensors connected to the specific BCM pins\n"\
@@ -554,6 +570,7 @@ static PyMethodDef DS18B20Methods[] = {
   { "pinsRead", DS18B20_pinsReadTemperature,METH_VARARGS, Help_pinsRead},
   { "pinsStartConversion", DS18B20_pinsStartConversion,METH_VARARGS, Help_pinsStartConversion},
   { "read", DS18B20_readTemperature,METH_VARARGS, Help_read},
+  { "readMax31850", MAX31850_readTemperature,METH_VARARGS, Help_read31850},
   { "scan", DS18B20_scan,METH_VARARGS,Help_scan},
   { "getResolution", DS18B20_getResolution, METH_VARARGS,Help_getRes},
   { "setResolution", DS18B20_setResolution, METH_VARARGS,Help_setRes},
@@ -1026,7 +1043,7 @@ for(BitIndex=0;BitIndex<64;BitIndex++)
 }
 
 
-int ReadSensor( unsigned long long ID, double * value)
+int ReadSensor( unsigned long long ID,unsigned char SensorType, double * value, double * value2,int * ErrorFlag)
 {
   int RetryCount;
   unsigned char  CRCByte;
@@ -1072,8 +1089,12 @@ int ReadSensor( unsigned long long ID, double * value)
 #endif
       continue;;
    }
-  //Check Resolution
+
  resolution=0;
+
+if(SensorType == TYPE_DS18B20)
+{
+  //Check Resolution
    switch(ScratchPad[4])
    {
 
@@ -1090,18 +1111,39 @@ int ReadSensor( unsigned long long ID, double * value)
 #endif
       continue;
     }
+}
+
     // Read Temperature
 
+  *ErrorFlag=0;
+  if( SensorType == TYPE_MAX31850)
+   {
+    IntTemp.CHAR[0]=ScratchPad[0] & 0xFC;
+    if((ScratchPad[0] & 1)==1)
+      *ErrorFlag=1;
+   }
+  else
+   {
     IntTemp.CHAR[0]=ScratchPad[0];
+   }
     IntTemp.CHAR[1]=ScratchPad[1];
-
-
     *value =  0.0625 * (double) IntTemp.SHORT;
+    *value2= 0.0;
+  if( SensorType == TYPE_MAX31850)
+   {
+    IntTemp.CHAR[0]=ScratchPad[2] & 0xF0;
+    IntTemp.CHAR[1]=ScratchPad[3];
+    if((ScratchPad[2] & 1) ==1) {*ErrorFlag |=2;}
+    if((ScratchPad[2] & 2) ==2) {*ErrorFlag |=4;}
+    if((ScratchPad[2] & 4) ==4) {*ErrorFlag |=8;}
+    *value2 =  0.0625 * (double)  (IntTemp.SHORT >> 4);
+   }
+
 #ifdef DEBUG
     ID &= 0x00FFFFFFFFFFFFFFULL;
     printf("%02llX-%012llX : ",ID & 0xFFULL, ID >>8);
 
-    printf("%02d bits  Temperature: %6.2f +/- %4.2f Celsius\n", resolution ,*value, 0.0625 * (double)  (1<<(12 - resolution)));
+    printf("Thermocouple: %6.2f Celsius, Internal %6.2f Celsius\n",*value,*value2);fflush(stdout); 
 #endif
     return 1;
     }
@@ -1221,8 +1263,8 @@ static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args)
 
 //////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////
-//   read
-static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args)
+//   readMax31850
+static PyObject* MAX31850_readTemperature(PyObject* self, PyObject* args)
 {
  unsigned long long ID;
  int loop,temp;
@@ -1258,7 +1300,12 @@ static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args)
     printf("cv=%d DS_PIN=%d ID=%llX\n",conversion,DS_PIN,ID);fflush(stdout);
 #endif
 
-
+unsigned char SensorType= (unsigned char) (ID & 0xFF);
+  if(SensorType != TYPE_MAX31850)
+     {
+        Py_INCREF(Py_None);
+        return(Py_None);
+     }
 
     if ((DS_PIN < 0) || (DS_PIN > 31))
       {
@@ -1307,8 +1354,113 @@ static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args)
        usleep(AcquisitionDelay);
     }
 
-    double value;
-    if(ReadSensor(ID,&value))
+    double value,value2;
+    int  ErrorFlag;
+    if(ReadSensor(ID,SensorType,&value,&value2,&ErrorFlag))
+    {
+
+         PyObject *tempList = PyList_New(3);
+         PyList_SetItem(tempList,0,Py_BuildValue("f",value));
+         PyList_SetItem(tempList,1,Py_BuildValue("f",value2));
+         PyList_SetItem(tempList,2,Py_BuildValue("i",ErrorFlag));
+//         Py_DECREF(tempList);
+        return tempList;
+
+    }
+
+  Py_INCREF(Py_None);
+  return(Py_None);
+}
+//////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////
+//   read
+static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args)
+{
+ unsigned long long ID;
+ int loop,temp;
+ int conversion;
+
+ long length = PyTuple_Size(args);
+
+  if(length != 3)
+  {
+#ifdef DEBUG
+   printf("(Length=%ld) != 3\n",length);
+#endif
+    Py_INCREF(Py_None);
+    return(Py_None);
+  }
+    PyObject* Pytemp = PyTuple_GetItem(args,0);
+    conversion = (int) PyLong_AsLong(Pytemp);
+
+    Pytemp = PyTuple_GetItem(args,1);
+    DS_PIN = (unsigned short) PyLong_AsLong(Pytemp);
+
+    Pytemp = PyTuple_GetItem(args,2);
+#if PY_MAJOR_VERSION == 3
+     PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
+     char * p = PyBytes_AS_STRING(Idstr);
+     Py_XDECREF(Idstr);
+     ID    = SensorIdToLLong(p);
+#else
+    ID     = SensorIdToLLong(PyString_AsString(Pytemp));
+#endif
+
+#ifdef DEBUG
+    printf("cv=%d DS_PIN=%d ID=%llX\n",conversion,DS_PIN,ID);fflush(stdout);
+#endif
+
+unsigned char SensorType= (unsigned char) (ID & 0xFF);
+    if ((DS_PIN < 0) || (DS_PIN > 31))
+      {
+#ifdef DEBUG
+    printf("DS_PIN=%d not in range\n",DS_PIN);fflush(stdout);
+#endif
+        Py_INCREF(Py_None);
+        return(Py_None);
+      }
+
+
+  // clean Previous  Pins usage
+ for(loop=0;loop<32;loop++)
+   DS18B20_Pins[loop]=-1;
+
+
+  // clean mask
+  for(loop=0;loop<4;loop++)
+   {
+     ModeMaskInput[loop]=0xffffffffL;
+     ModeMaskOutput[loop]=0;
+   }
+
+
+#ifdef DEBUG
+    printf("Pin #%d\n",DS_PIN);fflush(stdout);
+#endif
+
+    DS18B20_Pins[0]=DS_PIN;
+    temp = DS_PIN;
+    PinMask |= 1 << temp;
+    ModeMaskInput[temp/10] &= ~(7<<((temp % 10) * 3));
+    ModeMaskOutput[temp/10] |= (1<<((temp % 10) * 3));
+
+    if(conversion)
+    {
+      set_max_priority();
+      DoReset();
+      // start Acquisition
+       WriteByte(DS18B20_SKIP_ROM);
+       WriteByte(DS18B20_CONVERT_T);
+
+       set_default_priority();
+
+       //  wait  for the highest resolution probe
+       usleep(AcquisitionDelay);
+    }
+
+    double value,value2;
+    int ErrorFlag;
+    if(ReadSensor(ID,SensorType,&value,&value2,&ErrorFlag))
     {
 
         return (Py_BuildValue("f",value));
