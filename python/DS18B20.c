@@ -1657,6 +1657,17 @@ static PyObject* DS18B20_getResolution(PyObject* self, PyObject* args)
 
 
 
+unsigned char SensorType = (unsigned char) (ID & 0xff);
+
+
+if(SensorType != TYPE_DS18B20)
+ {
+   Py_INCREF(Py_None);
+   return Py_None;
+ }
+
+
+
 #ifdef DEBUG
     printf("DS_PIN=%d ID=%llX ",DS_PIN,ID);fflush(stdout);
 #endif
@@ -1750,6 +1761,14 @@ static PyObject* DS18B20_setResolution(PyObject* self, PyObject* args)
     Pytemp = PyTuple_GetItem(args,2);
     resolution = (int) PyLong_AsLong(Pytemp);
 
+unsigned char SensorType = (unsigned char) (ID & 0xff);
+
+
+if(SensorType != TYPE_DS18B20)
+ {
+   Py_INCREF(Py_None);
+   return Py_None;
+ }
 
 #ifdef DEBUG
     printf("DS_PIN=%d ID=%llX resolution=%d\n",DS_PIN,ID,resolution);fflush(stdout);
