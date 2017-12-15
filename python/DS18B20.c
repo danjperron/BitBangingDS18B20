@@ -248,8 +248,7 @@ int   DoReset(void)
 }
 
 
-
-void WriteByte(unsigned char value)
+void WriteByte_noDelay(unsigned char value)
 {
   unsigned char Mask=1;
   int loop;
@@ -276,9 +275,14 @@ void WriteByte(unsigned char value)
       Mask*=2;
       DelayMicrosecondsNoSleep(60);
     }
+}
 
+void WriteByte(unsigned char value)
+{
 
+   WriteByte_noDelay(value);
    usleep(100);
+
 }
 
 
@@ -1254,7 +1258,11 @@ static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args)
       DoReset();
       // start Acquisition
       WriteByte(DS18B20_SKIP_ROM);
-      WriteByte(DS18B20_CONVERT_T);
+      WriteByte_noDelay(DS18B20_CONVERT_T);
+       GPIO_SET= PinMask;
+       SetOutputMode(); 
+       GPIO_SET= PinMask;
+
       set_default_priority();
 
       Py_INCREF(Py_None);
@@ -1346,7 +1354,11 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       DoReset();
       // start Acquisition
        WriteByte(DS18B20_SKIP_ROM);
-       WriteByte(DS18B20_CONVERT_T);
+       WriteByte_noDelay(DS18B20_CONVERT_T);
+       GPIO_SET= PinMask;
+       SetOutputMode(); 
+       GPIO_SET= PinMask;
+
 
        set_default_priority();
 
@@ -1450,11 +1462,20 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       DoReset();
       // start Acquisition
        WriteByte(DS18B20_SKIP_ROM);
-       WriteByte(DS18B20_CONVERT_T);
+       WriteByte_noDelay(DS18B20_CONVERT_T);
+       // Force Output High
+       // in case of parasitic mode
+
+       GPIO_SET= PinMask;
+       SetOutputMode(); 
+       GPIO_SET= PinMask;
 
        set_default_priority();
 
        //  wait  for the highest resolution probe
+
+
+
        usleep(AcquisitionDelay);
     }
 
@@ -1823,6 +1844,13 @@ if(SensorType != TYPE_DS18B20)
   DoReset();
   SelectSensor(ID);
   WriteScratchPad(ScratchPad[2],ScratchPad[3],config);
+  DoReset();
+  WriteByte_noDelay(DS18B20_COPY_SCRATCHPAD);
+  GPIO_SET= PinMask;
+  SetOutputMode();
+  GPIO_SET= PinMask;
+  usleep(10000);
+  SetInputMode();
 
   Py_INCREF(Py_None);
   return(Py_None);
@@ -1958,6 +1986,9 @@ static PyObject* DS18B20_pinsReadTemperature(PyObject* self, PyObject* args)
       // start Acquisition
        WriteByte(DS18B20_SKIP_ROM);
        WriteByte(DS18B20_CONVERT_T);
+       GPIO_SET= PinMask;
+       SetOutputMode(); 
+       GPIO_SET= PinMask;
 
        set_default_priority();
 
