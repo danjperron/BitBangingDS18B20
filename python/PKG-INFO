@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: DS18B20
+Version: 1.0
+Summary: Read DS18B20 from user space
+Home-page: UNKNOWN
+Author: Daniel Perron
+Author-email: danjperron@videotron.ca
+License: MIT
+Description: Read DS18B20 from Raspberry Pi GPIO
+Platform: RaspberryPi
