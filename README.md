@@ -24,5 +24,5 @@ Python Add-on
     Don't forget to run the module using sudo!
     Help inside module
 	sudo python
-	help('DS8B20')
+	help('DS18B20')
 
