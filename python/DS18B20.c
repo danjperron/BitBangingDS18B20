@@ -221,19 +221,29 @@ int   DoReset(void)
  unsigned long gpio_pin;
 
 
-  SetInputMode();
+ GPIO_SET= PinMask;
+ SetOutputMode(); 
+ GPIO_SET= PinMask;
+
+// SetInputMode();
   DelayMicrosecondsNoSleep(10);
 
-  SetOutputMode();
+//  SetOutputMode();
    // pin low for 480 us
 
    GPIO_CLR = PinMask;
 
    usleep(480);
 
-   SetInputMode();
 
-   DelayMicrosecondsNoSleep(60);
+ GPIO_SET= PinMask;
+ SetOutputMode(); 
+ GPIO_SET= PinMask;
+   DelayMicrosecondsNoSleep(10);
+ 
+  SetInputMode();
+
+   DelayMicrosecondsNoSleep(50);
 
    gpio_pin = GPIO_READ;
 
@@ -248,7 +258,7 @@ int   DoReset(void)
 }
 
 
-void WriteByte_noDelay(unsigned char value)
+void WriteByte(unsigned char value)
 {
   unsigned char Mask=1;
   int loop;
@@ -262,28 +272,25 @@ void WriteByte_noDelay(unsigned char value)
        if((value & Mask)!=0)
         {
            DELAY1US
-           SetInputMode();
+           GPIO_SET = PinMask;
+//           SetInputMode();
            usleep(60);
 
         }
         else
         {
            DelayMicrosecondsNoSleep(60);
-           SetInputMode();
+//           SetInputMode();
+           GPIO_SET = PinMask;
            usleep(1);
         }
       Mask*=2;
       DelayMicrosecondsNoSleep(60);
     }
-}
-
-void WriteByte(unsigned char value)
-{
-
-   WriteByte_noDelay(value);
    usleep(100);
 
 }
+
 
 
 void  ReadByte(unsigned long *datatable)
@@ -1258,7 +1265,7 @@ static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args)
       DoReset();
       // start Acquisition
       WriteByte(DS18B20_SKIP_ROM);
-      WriteByte_noDelay(DS18B20_CONVERT_T);
+      WriteByte(DS18B20_CONVERT_T);
        GPIO_SET= PinMask;
        SetOutputMode(); 
        GPIO_SET= PinMask;
@@ -1354,7 +1361,7 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       DoReset();
       // start Acquisition
        WriteByte(DS18B20_SKIP_ROM);
-       WriteByte_noDelay(DS18B20_CONVERT_T);
+       WriteByte(DS18B20_CONVERT_T);
        GPIO_SET= PinMask;
        SetOutputMode(); 
        GPIO_SET= PinMask;
@@ -1462,10 +1469,13 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       DoReset();
       // start Acquisition
        WriteByte(DS18B20_SKIP_ROM);
-       WriteByte_noDelay(DS18B20_CONVERT_T);
+       GPIO_SET= PinMask;
+       SetOutputMode(); 
+       GPIO_SET= PinMask;
+       usleep(10);
+       WriteByte(DS18B20_CONVERT_T);
        // Force Output High
        // in case of parasitic mode
-
        GPIO_SET= PinMask;
        SetOutputMode(); 
        GPIO_SET= PinMask;
@@ -1845,7 +1855,7 @@ if(SensorType != TYPE_DS18B20)
   SelectSensor(ID);
   WriteScratchPad(ScratchPad[2],ScratchPad[3],config);
   DoReset();
-  WriteByte_noDelay(DS18B20_COPY_SCRATCHPAD);
+  WriteByte(DS18B20_COPY_SCRATCHPAD);
   GPIO_SET= PinMask;
   SetOutputMode();
   GPIO_SET= PinMask;
