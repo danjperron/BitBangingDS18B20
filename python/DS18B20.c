@@ -46,10 +46,10 @@ SOFTWARE.
 
 /*
    Programmer : Daniel Perron
-   Date       : 13 December 2017
+   Date       : 15 December 2017
    software   : DS18B20 user space reader
    License     : MIT license
-   version 2.0
+   version 2.01
                - python module implementation
 */
 
@@ -147,7 +147,7 @@ static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args);
 static PyObject* DS18B20_setAcquisitionDelay(PyObject* self, PyObject* args);
 static PyObject* DS18B20_getAcquisitionDelay(PyObject* self, PyObject* args);
 static PyObject* DS18B20_readScratchPad(PyObject* self, PyObject* args);
-
+static PyObject * DS18B20_version(PyObject* self, PyObject* args);
 
 
 // time interval calculation
@@ -222,7 +222,7 @@ int   DoReset(void)
 
 
  GPIO_SET= PinMask;
- SetOutputMode(); 
+ SetOutputMode();
  GPIO_SET= PinMask;
 
 // SetInputMode();
@@ -237,17 +237,17 @@ int   DoReset(void)
 
 
  GPIO_SET= PinMask;
- SetOutputMode(); 
+ SetOutputMode();
  GPIO_SET= PinMask;
-   DelayMicrosecondsNoSleep(10);
- 
+ DelayMicrosecondsNoSleep(10);
+
   SetInputMode();
 
-   DelayMicrosecondsNoSleep(50);
+   DelayMicrosecondsNoSleep(110);
 
    gpio_pin = GPIO_READ;
 
-   DelayMicrosecondsNoSleep(420);
+   DelayMicrosecondsNoSleep(360);
 
    gpio_pin &= PinMask;
 
@@ -258,7 +258,7 @@ int   DoReset(void)
 }
 
 
-void WriteByte(unsigned char value)
+void WriteByte(unsigned char value,unsigned char ParasiteMode)
 {
   unsigned char Mask=1;
   int loop;
@@ -272,16 +272,27 @@ void WriteByte(unsigned char value)
        if((value & Mask)!=0)
         {
            DELAY1US
+         if((loop == 7) && ParasiteMode)
+          {
            GPIO_SET = PinMask;
-//           SetInputMode();
+          }
+          else
+          {
+           SetInputMode();
+          }
            usleep(60);
-
         }
         else
         {
            DelayMicrosecondsNoSleep(60);
-//           SetInputMode();
+         if((loop == 7) && ParasiteMode)
+          {
            GPIO_SET = PinMask;
+          }
+          else
+          {
+           SetInputMode();
+          }
            usleep(1);
         }
       Mask*=2;
@@ -418,8 +429,8 @@ int ReadSensors(void)
 
   // Read scratch pad
 
-  WriteByte(DS18B20_SKIP_ROM);
-  WriteByte(DS18B20_READ_SCRATCHPAD);
+  WriteByte(DS18B20_SKIP_ROM,0);
+  WriteByte(DS18B20_READ_SCRATCHPAD,0);
 
   for(loop=0;loop<72;loop+=8)
    ReadByte(&bitdatatable[loop]);
@@ -451,19 +462,27 @@ int ReadSensors(void)
 //            GotOneResult=1;
 
             DS18B20_Data[loop].valid=1;
+
+          if((ScratchPad[4] & 0xF0) == 0xF0)
+          {
+            // we have a Max31850
+             resolution=10;
+             IntTemp.CHAR[0]=ScratchPad[0] & 0xFE;
+          }
+          else
+          {
           switch(ScratchPad[4])
            {
             case  0x1f: resolution=9;break;
-            case  0xf0:
             case  0x3f: resolution=10;break; 
             case  0x5f: resolution=11;break;
             default: resolution=12;break;
            }
-
+          IntTemp.CHAR[0]=ScratchPad[0];
+          }
           DS18B20_Data[loop].resolution=resolution;
           // Read Temperature
 
-          IntTemp.CHAR[0]=ScratchPad[0];
           IntTemp.CHAR[1]=ScratchPad[1];
 
           temperature =  0.0625 * (double) IntTemp.SHORT;
@@ -572,6 +591,9 @@ static char Help_ScratchPad[]="readScratchPad(BCM pin, sensor ID)\n"\
                                   "\t DS18B20.readScratchPad(16,'28-000006EF85D6')\n"\
                                   "\t [62, 1, 255, 255, 127, 255, 2, 16, 11]\n";
 
+static char Help_version[]="version()\n"\
+                           "return software version number\n";
+
 
 
 
@@ -585,15 +607,18 @@ static PyMethodDef DS18B20Methods[] = {
   { "scan", DS18B20_scan,METH_VARARGS,Help_scan},
   { "getResolution", DS18B20_getResolution, METH_VARARGS,Help_getRes},
   { "setResolution", DS18B20_setResolution, METH_VARARGS,Help_setRes},
-  { "setAcquisitionDelay", DS18B20_setAcquisitionDelay,METH_O,Help_setAcq}, 
-  { "getAcquisitionDelay", DS18B20_getAcquisitionDelay,METH_NOARGS,Help_getAcq}, 
+  { "setAcquisitionDelay", DS18B20_setAcquisitionDelay,METH_O,Help_setAcq},
+  { "getAcquisitionDelay", DS18B20_getAcquisitionDelay,METH_NOARGS,Help_getAcq},
   { "readScratchPad",      DS18B20_readScratchPad,METH_VARARGS,Help_ScratchPad},
+  { "version",             DS18B20_version,METH_NOARGS,Help_version},
   { NULL,NULL,0,NULL}
 };
 
 
 
-static char MainDoc[] = "Rapsberry Pi user space DS18B20 utility via GPIO\n(c) Daniel Perron 14 December 2017\n"\
+static char MainDoc[] = "DS18B20 Version 2.01\n"\
+			"(c) Daniel Perron 15 December 2017\n"\
+                        "Rapsberry Pi user space DS18B20 utility via GPIO\n"\
                         "Bitbanging manipulation to read DS18B20 sensor from one or multiple GPIO.\n"\
                         "pinsStartConversion() and pinsRead() functions allow to read and start conversion\n"\
                         "on multiple GPIOs but with only one sensor per GPIO. On tha mode all sensors are read in parallel.\n"\
@@ -848,7 +873,7 @@ if(*LastBitChange <64)
 
  DoReset();
 
-  WriteByte(DS18B20_SEARCH_ROM);
+  WriteByte(DS18B20_SEARCH_ROM,0);
   for(BitIndex=0;BitIndex<64;BitIndex++)
     {
 
@@ -951,10 +976,13 @@ void ScanForSensor(PyObject *sensorList)
             printf("%016llX\n",ID);fflush(stdout);
 #endif
             ID &= 0x00FFFFFFFFFFFFFFULL;
+            if(ID != 0ULL)
+            {
             sprintf(IDString, "%02llX-%012llX",ID & 0xFFULL, ID >>8);
             int len = strlen(IDString);
 //            PyList_Append(sensorList,Py_Decode(IDString,len,"ascii","ignore"));
             PyList_Append(sensorList,Py_BuildValue("s#",IDString,len));
+            }
 #ifdef DEBUG
            printf("ID To Hex=%llX\n",SensorIdToLLong(IDString));fflush(stdout);
 #endif
@@ -1006,7 +1034,7 @@ int ReadScratchPad(void)
 {
    int loop;
 
-       WriteByte(DS18B20_READ_SCRATCHPAD);
+       WriteByte(DS18B20_READ_SCRATCHPAD,0);
        for(loop=0;loop<9;loop++)
          {
           ScratchPad[loop]=pinReadByte();
@@ -1022,19 +1050,19 @@ void WriteScratchPad(unsigned char TH, unsigned char TL, unsigned char config)
 
     // Write Scratch pad
 
-    WriteByte(DS18B20_WRITE_SCRATCHPAD);
+    WriteByte(DS18B20_WRITE_SCRATCHPAD,0);
 
     // Write TH
 
-    WriteByte(TH);
+    WriteByte(TH,0);
 
     // Write TL
 
-    WriteByte(TL);
+    WriteByte(TL,0);
 
     // Write config
 
-    WriteByte(config);
+    WriteByte(config,0);
 }
 
 
@@ -1046,7 +1074,7 @@ void SelectSensor(unsigned  long long ID)
 {
 int BitIndex;
 
-WriteByte(DS18B20_MATCH_ROM);
+WriteByte(DS18B20_MATCH_ROM,0);
 
 for(BitIndex=0;BitIndex<64;BitIndex++)
    WriteBit(IDGetBit(&ID,BitIndex));
@@ -1264,11 +1292,8 @@ static PyObject* DS18B20_pinsStartConversion(PyObject* self, PyObject* args)
       set_max_priority();
       DoReset();
       // start Acquisition
-      WriteByte(DS18B20_SKIP_ROM);
-      WriteByte(DS18B20_CONVERT_T);
-       GPIO_SET= PinMask;
-       SetOutputMode(); 
-       GPIO_SET= PinMask;
+      WriteByte(DS18B20_SKIP_ROM,0);
+      WriteByte(DS18B20_CONVERT_T,1);
 
       set_default_priority();
 
@@ -1360,8 +1385,8 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       set_max_priority();
       DoReset();
       // start Acquisition
-       WriteByte(DS18B20_SKIP_ROM);
-       WriteByte(DS18B20_CONVERT_T);
+       WriteByte(DS18B20_SKIP_ROM,0);
+       WriteByte(DS18B20_CONVERT_T,1);
        GPIO_SET= PinMask;
        SetOutputMode(); 
        GPIO_SET= PinMask;
@@ -1468,12 +1493,12 @@ unsigned char SensorType= (unsigned char) (ID & 0xFF);
       set_max_priority();
       DoReset();
       // start Acquisition
-       WriteByte(DS18B20_SKIP_ROM);
+       WriteByte(DS18B20_SKIP_ROM,0);
        GPIO_SET= PinMask;
        SetOutputMode(); 
        GPIO_SET= PinMask;
        usleep(10);
-       WriteByte(DS18B20_CONVERT_T);
+       WriteByte(DS18B20_CONVERT_T,1);
        // Force Output High
        // in case of parasitic mode
        GPIO_SET= PinMask;
@@ -1855,10 +1880,7 @@ if(SensorType != TYPE_DS18B20)
   SelectSensor(ID);
   WriteScratchPad(ScratchPad[2],ScratchPad[3],config);
   DoReset();
-  WriteByte(DS18B20_COPY_SCRATCHPAD);
-  GPIO_SET= PinMask;
-  SetOutputMode();
-  GPIO_SET= PinMask;
+  WriteByte(DS18B20_COPY_SCRATCHPAD,1);
   usleep(10000);
   SetInputMode();
 
@@ -1884,7 +1906,7 @@ static PyObject* DS18B20_setAcquisitionDelay(PyObject* self, PyObject* args)
   printf("Acquisition Delay set to %lu\n",AcquisitionDelay);
 #endif
 
-  
+
   Py_INCREF(Py_None);
   return(Py_None);
 }
@@ -1892,12 +1914,20 @@ static PyObject* DS18B20_setAcquisitionDelay(PyObject* self, PyObject* args)
 //////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////
 //   getAquisitionDelay
+
 static PyObject* DS18B20_getAcquisitionDelay(PyObject* self, PyObject* args)
 {
   return PyLong_FromUnsignedLong(AcquisitionDelay);  
 }
 
+//////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////
+//   version()
 
+static PyObject * DS18B20_version(PyObject* self, PyObject* args)
+{
+   return Py_BuildValue("f",2.01);
+}
 
 
 
@@ -1994,11 +2024,8 @@ static PyObject* DS18B20_pinsReadTemperature(PyObject* self, PyObject* args)
       set_max_priority();
       DoReset();
       // start Acquisition
-       WriteByte(DS18B20_SKIP_ROM);
-       WriteByte(DS18B20_CONVERT_T);
-       GPIO_SET= PinMask;
-       SetOutputMode(); 
-       GPIO_SET= PinMask;
+       WriteByte(DS18B20_SKIP_ROM,0);
+       WriteByte(DS18B20_CONVERT_T,1);
 
        set_default_priority();
 
