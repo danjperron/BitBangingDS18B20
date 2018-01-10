@@ -317,10 +317,10 @@ void  ReadByte(unsigned long *datatable)
        DELAY1US
        //  set input
        SetInputMode();
-       // Wait  2 us
-       DelayMicrosecondsNoSleep(2);
+       // Wait  less than 15 us
+       DelayMicrosecondsNoSleep(13);
        *(datatable++)= GPIO_READ;
-       DelayMicrosecondsNoSleep(60);
+       DelayMicrosecondsNoSleep(47);
       }
 }
 
@@ -840,10 +840,11 @@ unsigned char ReadBit(void)
    DELAY1US
    // set INPUT
    INP_GPIO(DS_PIN);
-   DelayMicrosecondsNoSleep(2);
+   // wait less than 15 us
+   DelayMicrosecondsNoSleep(13);
    if(GPIO_READ_BIT(DS_PIN)!=0)
     rvalue=1;
-   DelayMicrosecondsNoSleep(60);
+   DelayMicrosecondsNoSleep(47);
    return rvalue;
 }
 
