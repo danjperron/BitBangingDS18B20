@@ -21,6 +21,9 @@
 #define TYPE_MAX31850 0x3B
 
 
+
+
+
 /*
 Copyright (c) <2017> <Daniel Perron>
 
@@ -52,6 +55,22 @@ SOFTWARE.
    version 2.01
                - python module implementation
 */
+
+/*
+   Programmer : Daniel Perron
+   Date       : 4 April 2018
+   software   : DS18B20 user space reader
+   License     : MIT license
+   version 2.02
+               - python module implementation using /dev/gpiomem
+                 no need of sudo anymore
+*/
+
+
+// Usage of /dev/gpiomem instead of /dev/mem
+// if you want /dev/mem undefine USE_GPIOMEM
+#define USE_GPIOMEM
+
 
 
 
@@ -616,7 +635,7 @@ static PyMethodDef DS18B20Methods[] = {
 
 
 
-static char MainDoc[] = "DS18B20 Version 2.01\n"\
+static char MainDoc[] = "DS18B20 Version 2.02 (sudo not needed)\n"\
 			"(c) Daniel Perron 15 December 2017\n"\
                         "Rapsberry Pi user space DS18B20 utility via GPIO\n"\
                         "Bitbanging manipulation to read DS18B20 sensor from one or multiple GPIO.\n"\
@@ -720,10 +739,17 @@ initDS18B20(void)
    PyModule_AddObject(m, "error", DS18B20Error);
 
 
+#ifdef USE_GPIOMEM
+    /* open /dev/mem */
+   if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC) ) < 0) {
+      PyErr_SetString(DS18B20Error,"Unable to open /dev/mem. Failed");
+      RETURN(NULL);
+#else
     /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       PyErr_SetString(DS18B20Error,"Unable to open /dev/mem. Failed");
       RETURN(NULL);
+#endif
    }
 
 
@@ -755,6 +781,19 @@ initDS18B20(void)
     fflush(stdout);
 #endif
 
+#ifdef USE_GPIOMEM
+  /* mmap GPIO */
+   gpio_map = mmap(
+      NULL,             //Any adddress in our space will do
+      0xB4,             //Map length
+      PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
+      MAP_SHARED,       //Shared with other processes
+      mem_fd,           //File to map
+      0                 //Offset to GPIO peripheral
+   );
+
+
+#else
 
   /* mmap GPIO */
    gpio_map = mmap(
@@ -765,7 +804,7 @@ initDS18B20(void)
       mem_fd,           //File to map
       GPIO_BASE         //Offset to GPIO peripheral
    );
-
+#endif
    close(mem_fd);
 
 
@@ -1927,7 +1966,7 @@ static PyObject* DS18B20_getAcquisitionDelay(PyObject* self, PyObject* args)
 
 static PyObject * DS18B20_version(PyObject* self, PyObject* args)
 {
-   return Py_BuildValue("f",2.01);
+   return Py_BuildValue("f",2.02);
 }
 
 

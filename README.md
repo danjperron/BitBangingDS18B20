@@ -21,8 +21,7 @@ Python Add-on
         sudo python3 setup.py install
 
 
-    Don't forget to run the module using sudo!
     Help inside module
-	sudo python
+	python
 	help('DS18B20')
 

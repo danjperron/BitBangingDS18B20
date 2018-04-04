@@ -10,5 +10,5 @@ sudo python setup.py install<br>
 sudo python3 setup.py install<br>
 
 There is more help inside python
-sudo python
+python
 help('DS18B20')
