@@ -635,7 +635,7 @@ static PyMethodDef DS18B20Methods[] = {
 
 
 
-static char MainDoc[] = "DS18B20 Version 2.02 (sudo not needed)\n"\
+static char MainDoc[] = "DS18B20 Version 2.02  April 4, 2018  (sudo not needed)\n"\
 			"(c) Daniel Perron 15 December 2017\n"\
                         "Rapsberry Pi user space DS18B20 utility via GPIO\n"\
                         "Bitbanging manipulation to read DS18B20 sensor from one or multiple GPIO.\n"\
@@ -742,7 +742,7 @@ initDS18B20(void)
 #ifdef USE_GPIOMEM
     /* open /dev/mem */
    if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC) ) < 0) {
-      PyErr_SetString(DS18B20Error,"Unable to open /dev/mem. Failed");
+      PyErr_SetString(DS18B20Error,"Unable to open /dev/gpiomem. Failed");
       RETURN(NULL);
 #else
     /* open /dev/mem */
