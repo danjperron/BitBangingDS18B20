@@ -640,7 +640,7 @@ static char MainDoc[] = "DS18B20 Version 2.02  April 4, 2018  (sudo not needed)\
                         "Rapsberry Pi user space DS18B20 utility via GPIO\n"\
                         "Bitbanging manipulation to read DS18B20 sensor from one or multiple GPIO.\n"\
                         "pinsStartConversion() and pinsRead() functions allow to read and start conversion\n"\
-                        "on multiple GPIOs but with only one sensor per GPIO. On tha mode all sensors are read in parallel.\n"\
+                        "on multiple GPIOs but with only one sensor per GPIO. In that mode all sensors are read in parallel.\n"\
                         "the scan() function will return the sensor ID from a specific pin.\n"\
                         "All the other functions  need to be set with the current pin and Sensor ID string\n";
 
