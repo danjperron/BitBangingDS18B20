@@ -1,3 +1,8 @@
+// April 2018
+//  change /dev/mem to /dev/gpiomem
+// now sudo  is not needed anymore
+#define USE_GPIOMEM
+
 // modified version to check BCM physical address
 // February 1, 2016
 // check  "/proc/device-tree/soc/ranges" for BCM address
@@ -818,11 +823,21 @@ void setup_io()
   unsigned   long  V1,V2,V3;
   }ranges;
 
+
+
+#ifdef USE_GPIOMEM
+   /* open /dev/mem */
+   if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC) ) < 0) {
+      printf("can't open /dev/gpiomem \n");
+      exit(-1);
+   }
+#else
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       printf("can't open /dev/mem \n");
       exit(-1);
    }
+#endif
 
   // read /proc/device-tree/soc/ranges
   // to check if we have the GPIO at 0x20000000 or 0x3F000000
@@ -844,6 +859,18 @@ void setup_io()
 
 //   printf("BCM GPIO BASE= %lx\n",BCM2708_PERI_BASE);
 
+
+#ifdef USE_GPIOMEM
+  /* mmap GPIO */
+   gpio_map = mmap(
+      NULL,             //Any adddress in our space will do
+      0xB4,             //Map length
+      PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
+      MAP_SHARED,       //Shared with other processes
+      mem_fd,           //File to map
+      0                 //Offset to GPIO peripheral
+   );
+#else
    /* mmap GPIO */
    gpio_map = mmap(
       NULL,             //Any adddress in our space will do
@@ -853,6 +880,8 @@ void setup_io()
       mem_fd,           //File to map
       GPIO_BASE         //Offset to GPIO peripheral
    );
+#endif
+
 
    close(mem_fd); //No need to keep mem_fd open after mmap
 
