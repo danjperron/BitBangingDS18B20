@@ -65,6 +65,8 @@
 // Access from ARM Running Linux
 
 //#define BCM2708_PERI_BASE        0x20000000
+// For RPi 1: 0x20000000
+// For RPi 2 or 3: 0x3F000000
 
 unsigned long BCM2708_PERI_BASE=0x20000000;
 
