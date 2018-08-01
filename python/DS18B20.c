@@ -1370,8 +1370,8 @@ static PyObject* MAX31850_readTemperature(PyObject* self, PyObject* args)
 #if PY_MAJOR_VERSION == 3
      PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
      char * p = PyBytes_AS_STRING(Idstr);
-     Py_XDECREF(Idstr);
      ID    = SensorIdToLLong(p);
+     Py_XDECREF(Idstr);
 #else
     ID     = SensorIdToLLong(PyString_AsString(Pytemp));
 #endif
@@ -1484,8 +1484,8 @@ static PyObject* DS18B20_readTemperature(PyObject* self, PyObject* args)
 #if PY_MAJOR_VERSION == 3
      PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
      char * p = PyBytes_AS_STRING(Idstr);
-     Py_XDECREF(Idstr);
      ID    = SensorIdToLLong(p);
+     Py_XDECREF(Idstr);
 #else
     ID     = SensorIdToLLong(PyString_AsString(Pytemp));
 #endif
@@ -1655,8 +1655,8 @@ static PyObject* DS18B20_readScratchPad(PyObject* self, PyObject* args)
 #if PY_MAJOR_VERSION == 3
      PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
      char * p = PyBytes_AS_STRING(Idstr);
-     Py_XDECREF(Idstr);
      ID    = SensorIdToLLong(p);
+     Py_XDECREF(Idstr);
 #else
     ID     = SensorIdToLLong(PyString_AsString(Pytemp));
 #endif
@@ -1745,8 +1745,8 @@ static PyObject* DS18B20_getResolution(PyObject* self, PyObject* args)
 #if PY_MAJOR_VERSION == 3
      PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
      char * p = PyBytes_AS_STRING(Idstr);
-     Py_XDECREF(Idstr);
      ID    = SensorIdToLLong(p);
+     Py_XDECREF(Idstr);
 #else
     ID     = SensorIdToLLong(PyString_AsString(Pytemp));
 #endif
@@ -1848,8 +1848,8 @@ static PyObject* DS18B20_setResolution(PyObject* self, PyObject* args)
 #if PY_MAJOR_VERSION == 3
      PyObject * Idstr = PyUnicode_AsEncodedString(Pytemp, "utf-8","Error ~");
      char * p = PyBytes_AS_STRING(Idstr);
-     Py_XDECREF(Idstr);
      ID    = SensorIdToLLong(p);
+     Py_XDECREF(Idstr);
 #else
     ID     = SensorIdToLLong(PyString_AsString(Pytemp));
 #endif
