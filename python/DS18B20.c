@@ -20,6 +20,8 @@
 #define TYPE_DS18B20  0x28
 #define TYPE_MAX31850 0x3B
 
+#define MICROSECONDA	3
+#define MICROSECONDB	57
 
 
 
@@ -252,7 +254,7 @@ int   DoReset(void)
 
    GPIO_CLR = PinMask;
 
-   usleep(480);
+  DelayMicrosecondsNoSleep(500);
 
 
  GPIO_SET= PinMask;
@@ -337,9 +339,9 @@ void  ReadByte(unsigned long *datatable)
        //  set input
        SetInputMode();
        // Wait  less than 15 us
-       DelayMicrosecondsNoSleep(13);
+       DelayMicrosecondsNoSleep(MICROSECONDA);
        *(datatable++)= GPIO_READ;
-       DelayMicrosecondsNoSleep(47);
+       DelayMicrosecondsNoSleep(MICROSECONDB);
       }
 }
 
@@ -880,10 +882,10 @@ unsigned char ReadBit(void)
    // set INPUT
    INP_GPIO(DS_PIN);
    // wait less than 15 us
-   DelayMicrosecondsNoSleep(13);
+   DelayMicrosecondsNoSleep(MICROSECONDA);
    if(GPIO_READ_BIT(DS_PIN)!=0)
     rvalue=1;
-   DelayMicrosecondsNoSleep(47);
+   DelayMicrosecondsNoSleep(MICROSECONDB);
    return rvalue;
 }
 
@@ -1056,13 +1058,13 @@ unsigned char pinReadByte(void)
        //  set input
        INP_GPIO(DS_PIN);
        // Wait  2 us
-       DelayMicrosecondsNoSleep(2);
+       DelayMicrosecondsNoSleep(MICROSECONDA);
       if((GPIO_READ_BIT(DS_PIN))!=0)
        {
         data |= Mask;
        }
        Mask*=2;
-       DelayMicrosecondsNoSleep(60);
+       DelayMicrosecondsNoSleep(MICROSECONDB);
       }
 
     return data;
