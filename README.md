@@ -21,7 +21,7 @@ Python Add-on
         sudo python3 setup.py install
 
     Example
-	DS_Array.py     Read 30 sensors in less than 30 seconds using Tkinter
+	DS_Array.py     Read 30 sensors in less than one second using Tkinter
 
     Help inside module
 	python
