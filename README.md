@@ -16,6 +16,8 @@ Method to access the DS18B20 sensor using Rapsberry Pi GPIO
 Python Add-on
 
     To install
+        sudo apt-get install python-dev
+        sudo apt-get install python3-dev
 	cd python
         sudo python setup.py install
         sudo python3 setup.py install
