@@ -7,8 +7,13 @@
 // check  "/proc/device-tree/soc/ranges" for BCM address
 //
 // add timer delay for us resolution from Gladkikh Artem
-// DelayMicrosecondsNoSleep 
+// DelayMicrosecondsNoSleep
 
+
+// update to  run on arm64 bits
+//
+// 31 march 2021
+// Daniel Perron
 
 
 // modified version to read DS18B20 in bit banging
@@ -25,8 +30,8 @@
 
 // Add the priority function from Adafruit DHT22 c code
 //  August 3 , 2014
-// Priority added 
-// code base on Adafruit DHT22  source code  for  
+// Priority added
+// code base on Adafruit DHT22  source code  for
 // set_max_priority and set_default_priority
 // Copyright (c) 2014 Adafruit Industries
 // Author: Tony DiCola
@@ -60,15 +65,19 @@
 // Usage of /dev/gpiomem instead of /dev/mem
 // if you want /dev/mem undefine USE_GPIOMEM
 #define USE_GPIOMEM
-
+//#undef USE_GPIOMEM
 
 // Access from ARM Running Linux
 
 //#define BCM2708_PERI_BASE        0x20000000
 
-unsigned long BCM2708_PERI_BASE=0x20000000;
 
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+// PI4
+unsigned long BCM_PERI_BASE=0xFE000000;
+
+//unsigned long BCM_PERI_BASE=0x20000000;
+
+#define GPIO_BASE                (BCM_PERI_BASE + 0x200000) /* GPIO controller */
 
 
 #include <stdio.h>
@@ -134,6 +143,9 @@ void set_default_priority(void) {
 
 
 
+
+
+
 void DelayMicrosecondsNoSleep (int delay_us)
 {
    long int start_time;
@@ -180,7 +192,6 @@ int  DoReset(void)
      DelayMicrosecondsNoSleep(380);
      return 1;
    }
- 
   return 0;
 }
 
@@ -518,9 +529,17 @@ void setup_io()
 {
  int handle;
   int count;
-  struct{
-  unsigned   long  V1,V2,V3;
-  }ranges;
+
+  #ifdef __arch64__
+      struct{
+       unsigned  int  V1,X1,V2,X2,V3,X3;
+      }ranges;
+  #else
+      struct{
+      unsigned  int  V1,V2,V3;
+      unsigned  int  X1,X2,X3;
+      }ranges;
+  #endif
 
 
 #ifdef USE_GPIOMEM
@@ -549,16 +568,13 @@ void setup_io()
 
   if(handle >=0)
    {
-     count = read(handle,&ranges,12);
-     if(count == 12)
-       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     count = read(handle,&ranges,24);
+     if(count == 24)
+       BCM_PERI_BASE=Swap4Bytes(ranges.V2);
      close(handle);
    }
 
-   printf("BCM GPIO BASE= %lx\n",BCM2708_PERI_BASE);
-
-
-
+   printf("BCM GPIO BASE= %lx\n",BCM_PERI_BASE);
 
 #ifdef USE_GPIOMEM
   /* mmap GPIO */
@@ -578,13 +594,13 @@ void setup_io()
       PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
       MAP_SHARED,       //Shared with other processes
       mem_fd,           //File to map
-      GPIO_BASE         //Offset to GPIO peripheral
+      GPIO_BASE     //Offset to GPIO peripheral
    );
 #endif
    close(mem_fd); //No need to keep mem_fd open after mmap
 
    if (gpio_map == MAP_FAILED) {
-      printf("mmap error %d\n", (int)gpio_map);//errno also set!
+      printf("mmap error gpio_map=%p\n", gpio_map);//errno also set!
       exit(-1);
    }
 

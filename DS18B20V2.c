@@ -66,14 +66,13 @@
 // - Add bit resolution checking at the start to set the correct acquisition waiting time
 // - Add loop scanning.
 
+//PI4
+unsigned long BCM_PERI_BASE=0xFE000000;
+
+//unsigned long BCM_PERI_BASE=0x20000000;
 
 
-
-unsigned long BCM2708_PERI_BASE=0x20000000;
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
-
-
-
+#define GPIO_BASE                (BCM_PERI_BASE + 0x200000) /* GPIO controller */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,7 +96,7 @@ int  mem_fd;
 void *gpio_map;
 
 // I/O access
-volatile unsigned long *gpio;
+volatile unsigned int *gpio;
 
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x) or SET_GPIO_ALT(x,y)
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -127,7 +126,7 @@ int   resolution;
 void setup_io();
 
 // 32 bits bitdatatable[72];  // 9 register of  8 bits
-unsigned long bitdatatable[72];
+unsigned int bitdatatable[72];
 
 
 
@@ -151,10 +150,10 @@ SensorInfoStruct DS18B20_Data[32];
 //  mask bit definition
 
 
-unsigned long PinMask;
+unsigned int PinMask;
 
-unsigned long  ModeMaskInput[4];
-unsigned long  ModeMaskOutput[4];
+unsigned int  ModeMaskInput[4];
+unsigned int  ModeMaskOutput[4];
 
 unsigned long  BadSensor=0;
 
@@ -225,7 +224,7 @@ void SetOutputMode(void)
 // otherwise  BadSensor will have the  bit corresponding to the bad sensor set
 int   DoReset(void)
 {
- unsigned long gpio_pin;
+ unsigned int gpio_pin;
 
 
   SetInputMode();
@@ -289,7 +288,7 @@ void WriteByte(unsigned char value)
 }
 
 
-void  ReadByte(unsigned long *datatable)
+void  ReadByte(unsigned int *datatable)
 {
    int loop;
 
@@ -311,13 +310,13 @@ void  ReadByte(unsigned long *datatable)
 
 
 // extract information by bit position from  table of 72  unsigned long 
-void ExtractScratchPad( unsigned long bitmask, unsigned char *ScratchPad)
+void ExtractScratchPad( unsigned int bitmask, unsigned char *ScratchPad)
 {
     int loop,loopr,Idx;
     unsigned char Mask=1;
 
     unsigned char databyte=0;
-    unsigned long *pointer= &bitdatatable[0];
+    unsigned int *pointer= &bitdatatable[0];
     for(loopr=0;loopr<9;loopr++)
      {
        Mask=1;
@@ -561,7 +560,7 @@ int main(int argc, char **argv)
    }
 
 
-   printf("Highest resolution is %d bits. Acquisition delay will be %dms.\n",Hresolution,AcqDelay/1000);fflush(stdout);
+   printf("Highest resolution is %d bits. Acquisition delay will be %ldms.\n",Hresolution,AcqDelay/1000);fflush(stdout);
    printf("Hit enter to continue. Ctrl-c to break.\n");
    fflush(stdout);
    getchar();
@@ -627,7 +626,19 @@ void setup_io()
 {
   int handle;
   int count;
-  struct{ unsigned   long  V1,V2,V3;}ranges;
+
+  #ifdef __arch64__
+      struct{
+       unsigned  int  V1,X1,V2,X2,V3,X3;
+      }ranges;
+  #else
+      struct{
+      unsigned  int  V1,V2,V3;
+      unsigned  int  X1,X2,X3;
+      }ranges;
+  #endif
+
+
 
 #ifdef USE_GPIOMEM
    /* open /dev/mem */
@@ -639,6 +650,7 @@ void setup_io()
    /* open /dev/mem */
    if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
       printf("can't open /dev/mem \n");
+
       exit(-1);
    }
 #endif
@@ -655,9 +667,9 @@ void setup_io()
 
   if(handle >=0)
    {
-     count = read(handle,&ranges,12);
-     if(count == 12)
-       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     count = read(handle,&ranges,24);
+     if(count == 24)
+       BCM_PERI_BASE=Swap4Bytes(ranges.V2);
      close(handle);
    }
 
@@ -688,12 +700,12 @@ void setup_io()
    close(mem_fd); //No need to keep mem_fd open after mmap
 
    if (gpio_map == MAP_FAILED) {
-      printf("mmap error %d\n", (int)gpio_map);//errno also set!
+      printf("mmap error gpio_map=%p\n", gpio_map);//errno also set!
       exit(-1);
    }
 
    // Always use volatile pointer!
-   gpio = (volatile unsigned long *)gpio_map;
+   gpio = (volatile unsigned int *)gpio_map;
 
 } // setup_io
 

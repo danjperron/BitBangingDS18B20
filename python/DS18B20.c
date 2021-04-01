@@ -78,8 +78,11 @@ SOFTWARE.
 
 unsigned long AcquisitionDelay=750000;
 
-unsigned long BCM2708_PERI_BASE=0x20000000;
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+//PI4
+unsigned int BCM_PERI_BASE=0xFE000000;
+
+//unsigned int BCM_PERI_BASE=0x20000000;
+#define GPIO_BASE                (BCM_PERI_BASE + 0x200000) /* GPIO controller */
 
 
 
@@ -91,7 +94,7 @@ int  mem_fd;
 void *gpio_map;
 
 // I/O access
-volatile unsigned long *gpio;
+volatile unsigned int *gpio;
 
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x) or SET_GPIO_ALT(x,y)
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -122,7 +125,7 @@ int   resolution;
 
 
 // 32 bits bitdatatable[72];  // 9 register of  8 bits
-unsigned long bitdatatable[72];
+unsigned int bitdatatable[72];
 
 
 
@@ -146,10 +149,10 @@ SensorInfoStruct DS18B20_Data[32];
 //  mask bit definition
 
 
-unsigned long PinMask;
+unsigned int PinMask;
 
-unsigned long  ModeMaskInput[4];
-unsigned long  ModeMaskOutput[4];
+unsigned int  ModeMaskInput[4];
+unsigned int  ModeMaskOutput[4];
 
 unsigned long  BadSensor=0;
 
@@ -239,7 +242,7 @@ void SetOutputMode(void)
 // otherwise  BadSensor will have the  bit corresponding to the bad sensor set
 int   DoReset(void)
 {
- unsigned long gpio_pin;
+ unsigned int gpio_pin;
 
 
  GPIO_SET= PinMask;
@@ -325,7 +328,7 @@ void WriteByte(unsigned char value,unsigned char ParasiteMode)
 
 
 
-void  ReadByte(unsigned long *datatable)
+void  ReadByte(unsigned int *datatable)
 {
    int loop;
 
@@ -347,13 +350,13 @@ void  ReadByte(unsigned long *datatable)
 
 
 // extract information by bit position from  table of 72  unsigned long 
-void ExtractScratchPad( unsigned long bitmask, unsigned char *ScratchPad)
+void ExtractScratchPad( unsigned int bitmask, unsigned char *ScratchPad)
 {
     int loop,loopr;
     unsigned char Mask=1;
 
     unsigned char databyte=0;
-    unsigned long *pointer= &bitdatatable[0];
+    unsigned int *pointer= &bitdatatable[0];
     for(loopr=0;loopr<9;loopr++)
      {
        Mask=1;
@@ -531,7 +534,7 @@ return 0;
 
 typedef union
 {
-  unsigned long word32[2];
+  unsigned int word32[2];
   unsigned long long word64;
 }union_word64_32;
 
@@ -718,9 +721,18 @@ initDS18B20(void)
    PyObject *m;
    int handle;
    int count;
-   struct { unsigned long V1,V2,V3;} ranges;
 
 
+ #ifdef __arch64__
+      struct{
+       unsigned  int  V1,X1,V2,X2,V3,X3;
+      }ranges;
+  #else
+      struct{
+      unsigned  int  V1,V2,V3;
+      unsigned  int  X1,X2,X3;
+      }ranges;
+  #endif
 
 
 #if  PY_MAJOR_VERSION == 3
@@ -767,9 +779,9 @@ initDS18B20(void)
 
   if(handle >=0)
    {
-     count = read(handle,&ranges,12);
-     if(count == 12)
-       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     count = read(handle,&ranges,24);
+     if(count == 24)
+       BCM_PERI_BASE=Swap4Bytes(ranges.V2);
      close(handle);
    }
     else
@@ -779,7 +791,7 @@ initDS18B20(void)
    }
 
 #ifdef DEBUG
-    printf("PeriBase is %lX\n",BCM2708_PERI_BASE);
+    printf("PeriBase is %lX\n",BCM_PERI_BASE);
     fflush(stdout);
 #endif
 
@@ -816,7 +828,7 @@ initDS18B20(void)
       RETURN(NULL);
    }
 
-   gpio = (volatile unsigned long *) gpio_map;
+   gpio = (volatile unsigned int *) gpio_map;
 
 
    RETURN(m);

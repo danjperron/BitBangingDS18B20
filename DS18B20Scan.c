@@ -65,8 +65,13 @@
 #include <string.h>
 #include <sched.h>
 
-unsigned long BCM2708_PERI_BASE=0x20000000;
-#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+//PI4
+unsigned long BCM_PERI_BASE=0xFE000000;
+
+//unsigned long BCM_PERI_BASE=0x20000000;
+
+
+#define GPIO_BASE                (BCM_PERI_BASE + 0x200000) /* GPIO controller */
 
 
 #define PAGE_SIZE (4*1024)
@@ -214,7 +219,7 @@ void WriteBit(unsigned char value)
      }
    DelayMicrosecondsNoSleep(60);
 }
- 
+
 
 
 
@@ -285,7 +290,7 @@ unsigned char  CalcCRC(unsigned char * data, unsigned char  byteSize)
    unsigned char  shift_register = 0;
    unsigned char  loop,loop2;
    char  DataByte;
- 
+
    for(loop = 0; loop < byteSize; loop++)
    {
       DataByte = *(data + loop);
@@ -663,7 +668,7 @@ int DecodeArg(int argc, char ** argv)
    if(argc==1)
     {
       PrintUsage(argv[0]);
-      return 0; 
+      return 0;
     }
 
 
@@ -747,11 +752,6 @@ int main(int argc, char **argv)
   int Flag=0;
   // Set up gpi pointer for direct register access
 
-
-  
-
-
-
   if(DecodeArg(argc,argv)==0)
      return 0;
 
@@ -819,10 +819,17 @@ void setup_io()
 {
  int handle;
   int count;
-  struct{
-  unsigned   long  V1,V2,V3;
-  }ranges;
 
+  #ifdef __arch64__
+      struct{
+       unsigned  int  V1,X1,V2,X2,V3,X3;
+      }ranges;
+  #else
+      struct{
+      unsigned  int  V1,V2,V3;
+      unsigned  int  X1,X2,X3;
+      }ranges;
+  #endif
 
 
 #ifdef USE_GPIOMEM
@@ -851,9 +858,9 @@ void setup_io()
 
   if(handle >=0)
    {
-     count = read(handle,&ranges,12);
-     if(count == 12)
-       BCM2708_PERI_BASE=Swap4Bytes(ranges.V2);
+     count = read(handle,&ranges,24);
+     if(count == 24)
+       BCM_PERI_BASE=Swap4Bytes(ranges.V2);
      close(handle);
    }
 
@@ -886,7 +893,7 @@ void setup_io()
    close(mem_fd); //No need to keep mem_fd open after mmap
 
    if (gpio_map == MAP_FAILED) {
-      printf("mmap error %d\n", (int)gpio_map);//errno also set!
+      printf("mmap error gpio_map=%p\n", gpio_map);//errno also set!
       exit(-1);
    }
 
