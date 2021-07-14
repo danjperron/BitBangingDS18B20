@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
+#define PY_SSIZE_T_CLEAN  int
 #include <Python.h>
 #include <sys/time.h>
 #include <time.h>
