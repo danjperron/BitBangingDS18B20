@@ -37,7 +37,7 @@ bool  init_gpiod(int Pin)
           return false;
       }
 
- gpiod_line_request_output_flags(gpioline,"DS18B20",GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN,1);
+  gpiod_line_request_output_flags(gpioline,"DS18B20",GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN|GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP,1);
 
   return true;
 }
