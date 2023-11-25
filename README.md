@@ -15,8 +15,7 @@ sudo apt-get install gpiod libgpiod-dev libgpiod-doc<br>
     
         gcc -o DS18B20Pi5Scan  DS18B20Pi5Scan.c -l gpiod
 
-<b> OLD 32bits method</b><br>
-N.B.  this works on 32bit OS. Not on Pi5.
+<b> Other Pi  method</b><br>
 
 Method to access the DS18B20 sensor using Rapsberry Pi GPIO
 
