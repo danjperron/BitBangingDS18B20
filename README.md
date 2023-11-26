@@ -3,12 +3,13 @@ BitBangingDS18B20
 
 
 
-<b> Raspberry Pi 5 *** update *** works on 64bits using gpiod</b><br>
+<b> Raspberry Pi 5  &  Pi4 4 *** update *** works on 64bits using gpiod</b><br>
 You will need to install gpiod<br>
 sudo apt-get install gpiod libgpiod-dev libgpiod-doc<br>
 
  - DS18B20Pi5Scan.c &nbsp;&nbsp;&nbsp;&nbsp;Application to connect multiple DS18B20 on one GPIO.
    (I need to check if it works on others Pi and on 32 bits)
+ - DS18B20Pi5V2.c  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Application to Connect one DS18B20 per GPIO but read them together.
  - Python module, configDS18B20Pi5.c and DS18B20Pi5V2.c to be done later
 
     to compile
