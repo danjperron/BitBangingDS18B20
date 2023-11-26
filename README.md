@@ -17,6 +17,8 @@ sudo apt-get install gpiod libgpiod-dev libgpiod-doc<br>
     
         gcc -o DS18B20Pi5Scan  DS18B20Pi5Scan.c -l gpiod
 
+   Still beta with gpiod. Not sure how it will perform with multiple GPIO connected. Still need to check if it works with old Pi.
+
 <b> Other Pi  method</b><br>
 
 Method to access the DS18B20 sensor using Rapsberry Pi GPIO
