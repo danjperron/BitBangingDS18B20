@@ -25,6 +25,9 @@ bool  init_gpiod(int Pin)
   gpiochip = gpiod_chip_open_by_name("gpiochip4");
 
   if(gpiochip == NULL)
+      gpiochip = gpiod_chip_open_by_name("gpiochip0");
+
+  if(gpiochip == NULL)
       {
            printf("unable to open GPIO\n");
            return false;
