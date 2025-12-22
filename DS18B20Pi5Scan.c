@@ -67,7 +67,8 @@ bool  init_gpiod(unsigned int  Pin)
              gpiod_chip_close(chip);
              return false;
            }
-          request = gpiod_chip_request_lines(chip, req_cfg, line_cfg);
+ 	    gpiod_request_config_set_consumer(req_cfg, "BitBDS18B20");
+        request = gpiod_chip_request_lines(chip, req_cfg, line_cfg);
 	    gpiod_request_config_free(req_cfg);
         gpiod_line_config_free(line_cfg);
         gpiod_line_settings_free(settings);
