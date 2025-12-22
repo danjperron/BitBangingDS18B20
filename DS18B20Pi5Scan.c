@@ -68,6 +68,9 @@ bool  init_gpiod(unsigned int  Pin)
              return false;
            }
           request = gpiod_chip_request_lines(chip, req_cfg, line_cfg);
+	    gpiod_request_config_free(req_cfg);
+        gpiod_line_config_free(line_cfg);
+        gpiod_line_settings_free(settings);
           return true;
 }
 
