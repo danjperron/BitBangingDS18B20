@@ -1,4 +1,4 @@
-// (c) Copywright  Nov 24, 2023  Daniel Perron
+// (c) CWdopywright  Nov 24, 2023  Daniel Perron
 //  version using gpiod library
 //  DS18B20Pi5Scan.c
 //  read from Raspberry Pi 5  GPIO  A DS18B20 sensor by bitbanging 1 wire protocol 
@@ -16,39 +16,66 @@
 #include <gpiod.h>
 
 
-struct gpiod_chip  *gpiochip;
-struct gpiod_line  *gpioline;
+
+struct gpiod_request_config *req_cfg = NULL;
+struct gpiod_line_request *request = NULL;
+struct gpiod_line_settings *settings;
+struct gpiod_line_config *line_cfg;
+struct gpiod_chip *chip;
 
 
-bool  init_gpiod(int Pin)
+bool  init_gpiod(unsigned int  Pin)
 {
-  gpiochip = gpiod_chip_open_by_name("gpiochip4");
+ chip = gpiod_chip_open("/dev/gpiochip0");
+        if (!chip)
+                return false;
+ settings = gpiod_line_settings_new();
+        if (!settings)
+                {
+		  gpiod_chip_close(chip);
+                  return false;
+                }
 
-  if(gpiochip == NULL)
-      gpiochip = gpiod_chip_open_by_name("gpiochip0");
+  gpiod_line_settings_set_direction(settings,
+                                          GPIOD_LINE_DIRECTION_OUTPUT);
+  gpiod_line_settings_set_output_value(settings,GPIOD_LINE_VALUE_ACTIVE);
+  gpiod_line_settings_set_bias(settings, GPIOD_LINE_BIAS_PULL_UP);
+  gpiod_line_settings_set_drive(settings, GPIOD_LINE_DRIVE_OPEN_DRAIN);
 
-  if(gpiochip == NULL)
-      {
-           printf("unable to open GPIO\n");
-           return false;
-      }
-  gpioline = gpiod_chip_get_line(gpiochip,Pin);
+  line_cfg = gpiod_line_config_new();
+        if (!line_cfg)
+          {
+            gpiod_line_settings_free(settings);
+            gpiod_chip_close(chip);
+            return false;
+          }
 
-  if(gpioline == NULL)
-      {
-          printf("unable to open specific GPIO20\n");
-          return false;
-      }
-
-  gpiod_line_request_output_flags(gpioline,"DS18B20",GPIOD_LINE_REQUEST_FLAG_OPEN_DRAIN|GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP,1);
-
-  return true;
+    int ret = gpiod_line_config_add_line_settings(line_cfg, &Pin, 1,
+                                                  settings);
+        if (ret)
+             {
+        gpiod_line_config_free(line_cfg);
+        gpiod_line_settings_free(settings);
+        gpiod_chip_close(chip);
+            return false;
+             }
+          req_cfg = gpiod_request_config_new();
+          if (!req_cfg)
+           {
+             gpiod_line_config_free(line_cfg);
+             gpiod_line_settings_free(settings);
+             gpiod_chip_close(chip);
+             return false;
+           }
+          request = gpiod_chip_request_lines(chip, req_cfg, line_cfg);
+          return true;
 }
 
 
-#define GPIO_READ gpiod_line_get_value (gpioline)
-#define GPIO_SET  gpiod_line_set_value(gpioline,1);
-#define GPIO_CLR  gpiod_line_set_value(gpioline,0);
+
+#define GPIO_READ  gpiod_line_request_get_value(request,DS_PIN)
+#define GPIO_SET  gpiod_line_request_set_value(request,DS_PIN,GPIOD_LINE_VALUE_ACTIVE);
+#define GPIO_CLR  gpiod_line_request_set_value(request,DS_PIN,GPIOD_LINE_VALUE_INACTIVE);
 
 #define DS18B20_SKIP_ROM 		0xCC
 #define DS18B20_CONVERT_T 		0x44
@@ -65,7 +92,7 @@ int   resolution;
 
 
 
-unsigned short DS_PIN=10;
+unsigned int DS_PIN=4;
 unsigned short ArgResolution=0;
 unsigned short ArgScan=0;
 unsigned short ArgFile=0;
@@ -713,7 +740,11 @@ int main(int argc, char **argv)
      return 0;
 
   //  set gpiod
-  init_gpiod(DS_PIN);
+  if(!init_gpiod(DS_PIN))
+    {
+      printf("Unable to open gpiod\n");
+      exit(-3);
+    }
 
   // Check for pull up resistor
   // Signal  input should be high
@@ -733,8 +764,7 @@ int main(int argc, char **argv)
    if(Flag==0)
     {
       printf("*** Error Unable to detect Logic level 1. No pull-up ?\n");
-      gpiod_line_release(gpioline);
-      gpiod_chip_close(gpiochip);
+      gpiod_line_request_release(request);
       exit(-1);
     }
 
@@ -750,8 +780,7 @@ int main(int argc, char **argv)
     if(GlobalStartConversion()==0)
     {
       printf("*** Error Unable to detect any DS18B20 sensor\n");
-      gpiod_line_release(gpioline);
-      gpiod_chip_close(gpiochip);
+      gpiod_line_request_release(request);
       exit(-2);
     }
 
@@ -767,11 +796,8 @@ int main(int argc, char **argv)
 
   set_default_priority(); 
 
-  gpiod_line_release(gpioline);
-  gpiod_chip_close(gpiochip);
 
+  gpiod_line_request_release(request);
   return 0;
 
 } // main
-
-
