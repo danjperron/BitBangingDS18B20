@@ -10,7 +10,7 @@ sudo apt-get install gpiod libgpiod-dev libgpiod-doc<br>
  - DS18B20Pi5Scan.c &nbsp;&nbsp;&nbsp;&nbsp;Application to connect multiple DS18B20 on one GPIO.
    (I need to check if it works on others Pi and on 32 bits)
  - DS18B20Pi5V2.c  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Application to Connect one DS18B20 per GPIO but read them together.<br>
-   <b> With new gpiod Version 2  only 2 gpio per read is possible. Still need to figure out how make it better. </b>
+   <b> With new gpiod Version 2  only 2 gpio per read is possible. Still need to figure out how to make it better. </b>
  - configDS18B20Pi5.c &nbsp;&nbsp;Application to set bit resolution  of the DS18B20.
  - Python module to be done later.
 
