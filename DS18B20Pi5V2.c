@@ -14,12 +14,14 @@
 // 7-  Reset DS18B20
 // 8-  Send SKIP_ROM command
 // 9-  Send read register command
-// 10-  Collect GPIO word into table
-// 11-  Decode individual bit to get sensor temperature
-// 12- End
+// 10-  return to step 3 one each GPIO
+// 11- End
 
 // December 2025
 // use lib gpiod version 2
+//  gpiod version 2 is slow
+// change method to use GPIO in sequential
+
 
 // November 2023
 // use lib gpiod
@@ -83,18 +85,21 @@
 
 
 
-int intvalue[32];
 unsigned int  DS18B20_Pins[32]= {0,0,0,0,0,0,0,0,
                                  0,0,0,0,0,0,0,0,
                                  0,0,0,0,0,0,0,0,
                                  0,0,0,0,0,0,0,0};
-int BadSensors[32];
+
+typedef struct {
+unsigned char BadSensor;
+unsigned char valid;
+unsigned char resolution;
+double temperature;
+}SensorInfoStruct;
+
+SensorInfoStruct DS18B20_Data[32];
+
 int NumberOfPin=0;
-
-int intvalues[72*32];
-int Idx=0;
-
-unsigned int bitdatatable[72];
 int bitdataCounter;
 
 
@@ -106,9 +111,6 @@ int bitdataCounter;
 #define DS18B20_WRITE_SCRATCHPAD    0x4E
 #define DS18B20_COPY_SCRATCHPAD     0x48
 
-unsigned char ScratchPad[9];
-double  temperature;
-int   resolution;
 
 
 
@@ -117,24 +119,18 @@ struct gpiod_line_request *request = NULL;
 struct gpiod_line_settings *settings = NULL;
 struct gpiod_line_config *line_cfg = NULL;
 struct gpiod_chip *chip = NULL;
-enum gpiod_line_value SetValues[32];
-enum gpiod_line_value ClrValues[32];
-enum gpiod_line_value GetValues[32];
 
-#define GPIO_READ  gpiod_line_request_get_values(request,GetValues);
-#define GPIO_SET   gpiod_line_request_set_values(request,SetValues);
-#define GPIO_CLR   gpiod_line_request_set_values(request,ClrValues);
+enum gpiod_line_value SetValues= GPIOD_LINE_VALUE_ACTIVE;
+enum gpiod_line_value ClrValues= GPIOD_LINE_VALUE_INACTIVE;
+enum gpiod_line_value GetValues;
+#define GPIO_READ(idx)  gpiod_line_request_get_values_subset(request,1,&DS18B20_Pins[idx],&GetValues);
+#define GPIO_SET(idx)   gpiod_line_request_set_values_subset(request,1,&DS18B20_Pins[idx],&SetValues);
+#define GPIO_CLR(idx)   gpiod_line_request_set_values_subset(request,1,&DS18B20_Pins[idx],&ClrValues);
 
 
 bool  init_gpiod()
 {
   int loop;
-
-  for(loop=0;loop<32;loop++)
-   {
-     SetValues[loop]=GPIOD_LINE_VALUE_ACTIVE;
-     ClrValues[loop]=GPIOD_LINE_VALUE_INACTIVE;
-   }
 
  chip = gpiod_chip_open("/dev/gpiochip0");
         if (!chip)
@@ -160,10 +156,8 @@ bool  init_gpiod()
             return false;
           }
 
-     for(int loop=0;loop<NumberOfPin;loop++)
-       {
-        int ret = gpiod_line_config_add_line_settings(line_cfg, &DS18B20_Pins[loop], 1,
-                                                  settings);
+
+     int ret = gpiod_line_config_add_line_settings(line_cfg,DS18B20_Pins,NumberOfPin ,settings);
         if (ret)
              {
         gpiod_line_config_free(line_cfg);
@@ -171,7 +165,6 @@ bool  init_gpiod()
         gpiod_chip_close(chip);
             return false;
              }
-        }
           req_cfg = gpiod_request_config_new();
           if (!req_cfg)
            {
@@ -186,13 +179,6 @@ bool  init_gpiod()
 
 
 
-typedef struct {
-unsigned char valid;
-unsigned char resolution;
-double temperature;
-}SensorInfoStruct;
-
-SensorInfoStruct DS18B20_Data[32];
 
 
 struct timespec  mystart,myacqstart,myend;
@@ -234,37 +220,28 @@ void DelayMicrosecondsNoSleep (int delay_us)
 
 // If everything  is ok it will return 0
 // otherwise  BadSensor will have the  bit corresponding to the bad sensor set
-int   DoReset(void)
+void  DoReset(int PinIdx)
 {
- unsigned int gpio_pin;
 
-
-  GPIO_SET
+  GPIO_SET(PinIdx)
   DelayMicrosecondsNoSleep(10);
 
-  GPIO_CLR
+  GPIO_CLR(PinIdx)
   usleep(480);
 
-  GPIO_SET
+  GPIO_SET(PinIdx)
   DelayMicrosecondsNoSleep(60);
 
-  GPIO_READ
+  GPIO_READ(PinIdx)
 
   DelayMicrosecondsNoSleep(420);
 
-  int Flag=1;
- for(int loop=0;loop<NumberOfPin;loop++)
-   {
-     BadSensors[loop]=GetValues[loop]==GPIOD_LINE_VALUE_ACTIVE ? 1 : 0;
-     if(BadSensors[loop]==1)
-        Flag=0;
-   }
-   return Flag;
+  DS18B20_Data[PinIdx].BadSensor=GetValues==GPIOD_LINE_VALUE_ACTIVE ? 1 : 0;
 }
 
 
 
-void WriteByte(unsigned char value)
+void WriteByte(int PinIdx,unsigned char value)
 {
   unsigned char Mask=1;
   int loop;
@@ -273,19 +250,19 @@ void WriteByte(unsigned char value)
    for(loop=0;loop<8;loop++)
      {
 
-      GPIO_CLR
+      GPIO_CLR(PinIdx)
 
        if((value & Mask)!=0)
         {
            DELAY1US
-           GPIO_SET
+           GPIO_SET(PinIdx)
            usleep(60);
 
         }
         else
         {
            DelayMicrosecondsNoSleep(60);
-           GPIO_SET
+           GPIO_SET(PinIdx)
            usleep(1);
         }
       Mask*=2;
@@ -297,52 +274,28 @@ void WriteByte(unsigned char value)
 }
 
 
-void  ReadByte(unsigned int *datatable)
+unsigned char  ReadByte(int SensorIdx)
 {
    int loop,loop2;
    unsigned int  _temp;
-   unsigned int mask;
+   unsigned int mask=1;
+   unsigned char datavalue=0;
 
    for(loop=0;loop<8;loop++)
      {
-       GPIO_CLR
+       GPIO_CLR(SensorIdx)
        DELAY1US
        //  set input
-       GPIO_SET
+       GPIO_SET(SensorIdx)
        DelayMicrosecondsNoSleep(2);
-       GPIO_READ
-       for(loop2=0;loop2<NumberOfPin;loop2++)
-           {
-            datatable[loop2]= GetValues[loop2]== GPIOD_LINE_VALUE_ACTIVE? 1 : 0;
-           }
-       datatable+=32;
+       GPIO_READ(SensorIdx)
+       if(GetValues == SetValues)
+         datavalue|= mask;
+       mask*=2;
        DelayMicrosecondsNoSleep(60);
       }
+  return  datavalue;
 }
-
-
-// extract information by bit position from  table of 72  unsigned long 
-void ExtractScratchPad( unsigned int bitmask, unsigned char *ScratchPad)
-{
-    int loop,loopr,Idx;
-    unsigned char Mask=1;
-
-    unsigned char databyte=0;
-    unsigned int *pointer= &bitdatatable[0];
-    for(loopr=0;loopr<9;loopr++)
-     {
-       Mask=1;
-       databyte=0;
-       for(loop=0;loop<8;loop++)
-       {
-         if((*(pointer++) & bitmask)!=0)
-           databyte|=Mask;
-         Mask*=2;
-       }
-      *(ScratchPad++)=databyte;
-     }
-}
-
 
 
 
@@ -394,114 +347,69 @@ void set_default_priority(void) {
 }
 
 
-
-
-int ReadSensors(void)
+int ReadSensor(int SensorIdx)
 {
-  int temp;
+  int retryloop;
   int loop;
-  int GotOneResult;
-  int GotAllResults;
-  unsigned char  CRCByte;
-
+  int resolution;
   union {
    short SHORT;
    unsigned char CHAR[2];
   }IntTemp;
+   unsigned char ScratchPad[9];
+   double  temperature;
 
-
-   int retryloop;
-  // ok now read until we got a least one valid crc up to n times
-
-  #define RETRY_MAX 5
+  unsigned char CRCByte;
+  const int RETRY_MAX=5;
+  DS18B20_Data[SensorIdx].valid=0;
 
   for(retryloop=0;retryloop<RETRY_MAX;retryloop++)
   {
-  GotOneResult=0;  // this will indicate if we have one reading with a good crc 
-  GotAllResults=1; // this will indicate if we have all readins from all sensors
+   DoReset(SensorIdx);
+   WriteByte(SensorIdx,DS18B20_SKIP_ROM);
+   WriteByte(SensorIdx,DS18B20_READ_SCRATCHPAD);
+   for(loop=0;loop<9;loop++)
+     ScratchPad[loop] = ReadByte(SensorIdx);
 
-  set_max_priority();
-  DoReset();
+    CRCByte= CalcCRC(ScratchPad,8);
 
-  // Read scratch pad
+    if(CRCByte!=ScratchPad[8])
+         continue;
 
-  WriteByte(DS18B20_SKIP_ROM);
-  WriteByte(DS18B20_READ_SCRATCHPAD);
+    //Check Resolution
+    resolution=0;
 
-//  for(loop=0;loop<72;loop+=8)
-//   ReadByte(&bitdatatable[loop]);
-
-  for(loop=0;loop<72;loop+=8)
-    ReadByte(&intvalues[loop*32]);
-
-// convert to bitdatatable
-  int mask=1;
-  for(loop=0;loop<72;loop++)
-   {
-     int _temp=0;
-     for(int loop2=0;loop2<32;loop2++)
-        if(intvalues[loop*32+loop2])
-          _temp|= 1 << loop2;
-     bitdatatable[loop]=_temp;
-   }
-
-
-  set_default_priority();
-
-
-  // extract bit info fro valid gpio pin
-   for(loop=0;loop<NumberOfPin;loop++)
-      {
-//       temp = DS18B20_Pins[loop];
-       temp = loop;
-//      if(temp<0) break;
-
-       // by default put data invalid
-         DS18B20_Data[loop].valid=0;
-
-       ExtractScratchPad(1UL<<temp,ScratchPad);
-       CRCByte= CalcCRC(ScratchPad,8);
-
-       if(CRCByte!=ScratchPad[8])
-        {
-         GotAllResults=0;
-        }
-        else
-         {
-          //Check Resolution
-          resolution=0;
-
-          if((ScratchPad[4] & 0x9F)== 0x1f)
-           {
-            GotOneResult=1;
-
-            DS18B20_Data[loop].valid=1;
-          switch(ScratchPad[4])
+    if((ScratchPad[4] & 0x9F)!= 0x1f)
+      continue;
+    DS18B20_Data[SensorIdx].valid=1;
+    switch(ScratchPad[4])
            {
             case  0x1f: resolution=9;break;
             case  0x3f: resolution=10;break;
             case  0x5f: resolution=11;break;
             default: resolution=12;break;
            }
+    DS18B20_Data[SensorIdx].resolution=resolution;
+    // Read Temperature
 
-          DS18B20_Data[loop].resolution=resolution;
-          // Read Temperature
+    IntTemp.CHAR[0]=ScratchPad[0];
+    IntTemp.CHAR[1]=ScratchPad[1];
 
-          IntTemp.CHAR[0]=ScratchPad[0];
-          IntTemp.CHAR[1]=ScratchPad[1];
-
-          temperature =  0.0625 * (double) IntTemp.SHORT;
-          DS18B20_Data[loop].temperature= temperature;
-          }
-         else
-            GotAllResults=0;
-         }
-       }
-   // if(GotOneResult) return(1);
-   if(GotAllResults) return(1);
-     usleep(10000);
+    DS18B20_Data[SensorIdx].temperature= 0.0625 * (double) IntTemp.SHORT;
+    break;
+   }
+   return DS18B20_Data[SensorIdx].valid;
 }
-return 0;
+
+void ReadSensors(void)
+{
+  int loop;
+
+  set_max_priority();
+  for(loop=0;loop<NumberOfPin;loop++)
+     if(!DS18B20_Data[loop].BadSensor)
+        ReadSensor(loop);
+  set_default_priority();
 }
 
 
@@ -528,20 +436,11 @@ int main(int argc, char **argv)
      NumberOfPin++;
     }
 
-  for(loop=0;loop<NumberOfPin;loop++)
-  {
-    printf("GPIO%d\n",DS18B20_Pins[loop]);
-  }
-
-
-
-
    init_gpiod();
 
 
 // first thing to do is to check all sensor to determine which is the highest resolution
 //
-
 
    Hresolution=9;
    ReadSensors();
@@ -584,15 +483,19 @@ int main(int argc, char **argv)
   set_max_priority();
 
 
-  DoReset();
 
 
+  for(loop=0;loop<NumberOfPin;loop++)
+   {
+     DoReset(loop);
 
-  // Start Acquisition
-
-  WriteByte(DS18B20_SKIP_ROM);
-  WriteByte(DS18B20_CONVERT_T);
-
+     // Start Acquisition
+     if(!DS18B20_Data[loop].BadSensor)
+       {
+        WriteByte(loop,DS18B20_SKIP_ROM);
+        WriteByte(loop,DS18B20_CONVERT_T);
+       }
+    }
   set_default_priority();
 
   //  wait  for the highest resolution probe
@@ -609,8 +512,13 @@ int main(int argc, char **argv)
 
    for(loop=0;loop<NumberOfPin;loop++)
    {
-
     printf("GPIO %d : ",DS18B20_Pins[loop]);
+
+    if(DS18B20_Data[loop].BadSensor)
+      {
+        printf("Bad sensor!\n");
+        continue;
+      }
 
     if(DS18B20_Data[loop].valid)
         printf("%02d bits  Temperature: %6.2f +/- %4.2f Celsius\n", DS18B20_Data[loop].resolution ,DS18B20_Data[loop].temperature, 0.0625 * (double)  (1<<(12 - DS18B20_Data[loop].resolution)));
@@ -624,4 +532,3 @@ int main(int argc, char **argv)
  gpiod_line_request_release(request);
   return 0;
 } // main
-
